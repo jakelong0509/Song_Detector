@@ -61,7 +61,7 @@ class RNN():
         caches = []
         for t in range(Tx):
             xt = np.atleast_2d(X[t,:])
-            print(xt.shape)
+
             a_next, cache = self.cell_forward(a_prev, xt)
             a_prev = a_next
             caches.append(cache)
@@ -88,7 +88,7 @@ class LSTM(RNN):
             a_next = a0
             count = Tx - 1
             caches_back = []
-            while(count > 0):
+            while(count >= 0):
                 xt = np.atleast_2d(X[count, :])
                 a_prev, cache = self.cell_forward(a_next, xt)
                 a_next = a_prev
@@ -98,16 +98,17 @@ class LSTM(RNN):
             return caches_back
 
 
-    # concat forward hidden state and backward hidden state
-    def concatLSTM(self):
-        self.A = []
+# concat forward hidden state and backward hidden state
+def concatLSTM(caches_forward, caches_back):
+    A = []
 
-        for c, cb in self.caches_forward, self.caches_back:
-            _, a_forward = c
-            _, a_backward = cb
-            concat = np.concatenate((a_forward, a_backward), axis = 1)
-            self.A.append(concat)
-        return self.A
+    for c, cb in zip(caches_forward, caches_back):
+        _, a_forward = c
+        _, a_backward = cb
+        concat = np.concatenate((a_forward, a_backward), axis = 1)
+
+        A.append(concat.reshape(-1)) # (Tx, 2*n_a)
+    return np.array(A)
 
 def orthogonal(shape):
     A = np.random.rand(shape,shape)
@@ -124,8 +125,9 @@ if __name__ == "__main__":
     output_dim = (10,10,128)
     a0 = np.zeros((1,128))
     X = np.random.random((10,101))
-    LSTM = LSTM(input_dim, output_dim)
-    caches = LSTM.layer_forward_for(a0,X)
-    for cache in caches:
-        _, a = cache
-        print(a)
+    LSTM_forward = LSTM(input_dim, output_dim)
+    LSTM_backward = LSTM(input_dim, output_dim, is_backward = True)
+    caches_forward = LSTM_forward.layer_forward_for(a0, X)
+    caches_backward = LSTM_backward.layer_forward_for(a0, X)
+    A = concatLSTM(caches_forward, caches_backward)
+    print(A.shape)
