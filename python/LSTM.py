@@ -2,6 +2,7 @@ import numpy as np
 import os
 import sys
 from functions import activations as act, helper_func as func
+from wrapper import Bidirectional
 
 class LSTM():
     def __init__(self, input_dim, output_dim):
@@ -13,6 +14,9 @@ class LSTM():
         self.input_dim = input_dim
         self.output_dim = output_dim
         self.params = {}
+
+        # a toggle used to decide LSTM_backward
+        self.is_backward = False
 
         # retrieve dimension
         _, _, self.n_x = self.input_dim
@@ -70,6 +74,10 @@ class LSTM():
     def forward_propagation(self, X):
         """
         X: data of 1 row (Tx, n_x)
+        -----------------------------
+        backward case:
+            a_prev = a_next
+            c_prev = c_next
         """
         Tx, n_x = X.shape
         caches = []
@@ -80,7 +88,13 @@ class LSTM():
         a_prev = a0
         c_prev = c0
 
-        for t in range(Tx):
+        range = []
+        if self.is_backward:
+            range = np.flip(np.arange(Tx), axis = 0)
+        else:
+            range = np.arange(Tx)
+
+        for t in range:
             xt = np.atleast_2d(X[t, :])
             at, ct, cache = self.cell_forward(a_prev, c_prev, xt)
             a_prev = at
@@ -95,6 +109,6 @@ if __name__ == "__main__":
     output_dim = (10,10,5)
 
     X = np.random.random((10,10,3))
-    LSTM = LSTM(input_dim, output_dim)
-    A, caches = LSTM.forward_propagation(X[1,:,:])
-    print(A)
+    bi_LSTM = Bidirectional(LSTM(input_dim, output_dim), X[1,:,:])
+    A = bi_LSTM.concatLSTM()
+    print(A.shape)
