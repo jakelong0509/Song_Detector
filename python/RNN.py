@@ -1,6 +1,7 @@
 import numpy as np
 import math
 import copy
+import wrapper
 from data_preprocessing import song_preprocessing as sp
 from numpy import linalg as LA
 from functions import activations as act, helper_func as func
@@ -75,65 +76,13 @@ class RNN():
 
         return caches
 
-# Create LSTM layer inherit from standard RNN layer
-class LSTM(RNN):
-    def __init__(self, input_dim, output_dim):
-        RNN.__init__(self, input_dim, output_dim)
-        self.is_backward = False
-
-    def LSTM_layer_forward(self, a0, X):
-        """
-        X: dataset (Tx, n_x)
-        """
-        if self.is_backward:
-            """
-            in backward LSTM a0 = a_Tx+1
-            """
-            return self.layer_forward(a0, X, is_backward = self.is_backward)
-        else:
-            return self.layer_forward(a0, X)
-
-
-
-
-
-class Bidirectional():
-    def __init__(self, layer, a0, X):
-        self.forward = copy.copy(layer)
-
-        self.backward = copy.copy(layer)
-        self.backward.is_backward = True
-
-
-        self.a0 = a0
-        self.X = X
-
-    def bi_forward(self):
-        caches_forward = self.forward.LSTM_layer_forward(self.a0, self.X)
-        caches_backward = self.backward.LSTM_layer_forward(self.a0, self.X)
-        return caches_forward, caches_backward
-
-
-    # concat forward hidden state and backward hidden state
-    def concatLSTM(self):
-        caches_forward, caches_backward = self.bi_forward()
-        cache = (caches_forward, caches_backward)
-        self.A = []
-
-        for c, cb in zip(caches_forward, caches_backward):
-            _, a_forward = c
-            _, a_backward = cb
-            concat = np.concatenate((a_forward, a_backward), axis = 1)
-
-            self.A.append(concat.reshape(-1)) # (Tx, 2*n_a)
-        return np.array(self.A)
 
 if __name__ == "__main__":
     input_dim = (10, 10, 3)
     output_dim = (10,10,5)
     a0 = np.zeros((1,5))
     X = np.random.random((10,3))
-    bi_LSTM = Bidirectional(LSTM(input_dim, output_dim), a0, X)
+    bi_LSTM = wrapper.Bidirectional(LSTM(input_dim, output_dim), a0, X)
 
 
     A = bi_LSTM.concatLSTM()
