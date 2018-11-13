@@ -24,16 +24,23 @@ class attention_model():
         self.S = _current_A.shape[0]
         self.n_s = _prev_s.shape[1]
 
-        # initialize weight for model
-        self._params = []
-        for i in range(len(self._layer)):
-            self._parms["W"+str(i+1)] = func.xavier(())
-
         # call duplicate function fron functions module to duplicate _prev_s from (1,n_s) to (S, n_s)
         self._prev_S = func.duplicate(self.S, self.n_s, self._prev_s, axis = 0)
 
         # concatenate S and A
         self._SA_concat = np.concatenate((self._current_A, self._prev_S), axis = 1)
+        n_x = self._SA_concat.shape[1]
+
+        # initialize weight for model
+        # input to neural have shape = (1, n_a + n_s)
+        self._params = []
+        for i in range(len(self._layer)):
+            self._params["W"+str(i+1)] = func.xavier((n_x, self._layer[i]))
+            self._params["b"+str(i+1)] = np.zeros((1, self._layer[i]))
+            n_x = self.layer[i]
+
+        # initialize weight for last layer
+        self._params["We"] = func.xavier((self._layer[len(self._layer)-1], 1))
 
         # assert the dimension of concatenate (S, n_a + n_s)
         assert(self._SA_concat.shape == (self.S, self._current_A.shape[1] + self.n_s))
