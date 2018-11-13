@@ -1,4 +1,6 @@
 import numpy as np
+import sys
+import os
 from numpy import linalg as LA
 
 # Orthogonal initializer
@@ -13,6 +15,10 @@ def orthogonal(shape):
 
 # Xavier initializer
 def xavier(dimension):
+    # checking if dimension is a tuple or not
+    if not isinstance(dimension, tuple):
+        sys.exit("Argument 'dimension' is not a tuple. Terminating....")
+
     n_out, n_in = dimension
     limit = np.sqrt(6 / (n_in + n_out))
     return np.random.uniform(-limit, limit, size = dimension)

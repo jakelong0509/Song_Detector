@@ -17,21 +17,27 @@ class attention_model():
         if isinstance(layer_dimension, list):
             self._layer = layer_dimension
         else:
-            sys.exit("The argument of layer_dimension is not a list. Terminate operation")
+            sys.exit("The argument of layer_dimension is not a list. Terminating operation...")
 
         self._current_A = _current_A
         self._prev_s = _prev_s
         self.S = _current_A.shape[0]
         self.n_s = _prev_s.shape[1]
 
+        # initialize weight for model
+        self._params = []
+        for i in range(len(self._layer)):
+            self._parms["W"+str(i+1)] = func.xavier(())
+
         # call duplicate function fron functions module to duplicate _prev_s from (1,n_s) to (S, n_s)
         self._prev_S = func.duplicate(self.S, self.n_s, self._prev_s, axis = 0)
 
         # concatenate S and A
-        self._SA_concat = np.concatenate((self._current_A, self._prev_S), axis = 0)
+        self._SA_concat = np.concatenate((self._current_A, self._prev_S), axis = 1)
 
-        # assert the dimension of concatenate
+        # assert the dimension of concatenate (S, n_a + n_s)
         assert(self._SA_concat.shape == (self.S, self._current_A.shape[1] + self.n_s))
 
     def cell_forward(self):
-        
+        # hidden layer
+        for h in self._layer:
