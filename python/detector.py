@@ -34,7 +34,7 @@ if __name__ == "__main__":
     m = X.shape[0]
 
     n_x = X.shape[2]
-    n_a = 128
+    n_a = 64
 
     pre_LSTM = LSTM((Tx, n_x), (Tx, n_a))
     pre_bi_LSTM = Bidirectional(pre_LSTM, X[0,:,:])
@@ -43,14 +43,14 @@ if __name__ == "__main__":
     # TODO: dropout A
 
     # attention and post_LSTM
-    n_s = 256
-    n_c = n_a
+    n_s = 128
+    n_c = n_a * 2
     post_LSTM = LSTM((Ty, n_c), (Ty, n_s))
     start = 0
     end = S
     prev_s = np.zeros((1, n_s))
     prev_a = np.zeros((1, n_s))
-    hidden_dimension = [128, 64]
+    hidden_dimension = [64]
     lstm_S = []
     attentions = []
     for t in range(Ty):
@@ -64,8 +64,20 @@ if __name__ == "__main__":
         lstm_S.append(st)
         prev_s = st
         prev_a = at
-    lstm_S = lstm_S.reshape(-1)
+
+    print(np.array(lstm_S).shape)
     # TODO: dropout lstm_S
 
     # initialize last layer Wy
+    # Wy shape = ()
+    # st shape = (1,n_s)
+    Wy = func.xavier((n_s, n_y))
+    by = np.zeros((1, n_y))
+    Y_hat = []
+    for st in lstm_S:
+        Zy = np.matmul(st, Wy) + by # shape = (1, n_y)
+        yt_hat = act.softmax(Zy)
+        Y_hat.append(yt_hat)
+
+    # Y_hat shape = (Ty, 1, n_y)
     print(A.shape)

@@ -34,21 +34,23 @@ class attention_model():
 
         # initialize weight for model
         # input to neural have shape = (1, n_a + n_s)
-        self._params = []
+        self._params = {}
         for i in range(len(self._layer)):
             self._params["W"+str(i+1)] = func.xavier((n_x, self._layer[i]))
             self._params["b"+str(i+1)] = np.zeros((1, self._layer[i]))
-            n_x = self.layer[i]
+            n_x = self._layer[i]
 
         # initialize weight for last layer
         self._params["We"] = func.xavier((self._layer[len(self._layer)-1], 1))
         self._params["be"] = np.zeros((1,1))
 
         # assert the dimension of concatenate (S, n_a + n_s)
+
         assert(self._SA_concat.shape == (self.S, self._current_A.shape[1] + self.n_s))
 
     def nn_cell_forward(self, curr_input):
         # hidden layer
+
         assert(curr_input.shape == (1, self.n_a + self.n_s))
         input = curr_input # shape = (1, n_a + n_s)
         caches_t_s = []
@@ -71,14 +73,15 @@ class attention_model():
         _caches_t = []
         _energies = []
         for s in range(self.S):
-            energy, caches_t_s = cell_forward(self._SA_concat[s,:])
+            energy, caches_t_s = self.nn_cell_forward(self._SA_concat[s,:].reshape((1, self.n_a + self.n_s)))
             _caches_t.append(caches_t_s)
             _energies.append(energy)
 
         # calculate alpha
         # alphas shape = (1,S)
-        alphas = act.softmax(np.Array(_energies.reshape((1,self.S))))
+        alphas = act.softmax(np.array(_energies).reshape((1,self.S)))
 
         # calculate context of time step t shape=(1,n_c) n_c = n_a
         c = np.matmul(alphas, self._current_A)
+        
         return alphas, c, _energies, _caches_t

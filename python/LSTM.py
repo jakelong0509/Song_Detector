@@ -19,11 +19,11 @@ class LSTM():
         self.is_backward = False
 
         # retrieve dimension
-        _, self.n_x = self.input_dim
-        _, self.n_a = self.output_dim
+        _, self.n_x = self.input_dim # 256
+        _, self.n_a = self.output_dim # 256
 
         # initialize cell params
-        _re_cell_W = func.orthogonal(self.n_a)
+        _re_cell_W = func.orthogonal(self.n_a) # 256,256
         _ke_cell_W = func.xavier((self.n_a, self.n_x)) # W.shape = (n_a, n_x)
         _cell_b = np.zeros((1,self.n_a))
         _cell_W = np.concatenate((_re_cell_W, _ke_cell_W), axis = 1) # shape = (n_a, na + n_x)
