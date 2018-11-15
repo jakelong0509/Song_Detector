@@ -94,7 +94,7 @@ def preprocessing_data(dir, Tx, Ty):
         y_indexes.append(get_y_index(dir, s))
         if(x_temp.shape[1] < Tx):
             missing = Tx - x_temp.shape[1]
-            zeros = np.repeat(np.zeros((101,1)), missing, axis=1) # (101,missing)
+            zeros = np.repeat(np.zeros((x_temp.shape[0],1)), missing, axis=1) # (101,missing)
             x_temp = np.append(x_temp, zeros, axis = 1)
 
         x.append(x_temp)
