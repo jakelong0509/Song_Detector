@@ -19,8 +19,8 @@ class LSTM():
         self.is_backward = False
 
         # retrieve dimension
-        _, _, self.n_x = self.input_dim
-        _, _, self.n_a = self.output_dim
+        _, self.n_x = self.input_dim
+        _, self.n_a = self.output_dim
 
         # initialize cell params
         _re_cell_W = func.orthogonal(self.n_a)

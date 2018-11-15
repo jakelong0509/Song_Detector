@@ -3,7 +3,7 @@ import os
 import sys
 
 from LSTM import LSTM
-from wrapper import *
+from wrapper import Bidirectional
 from Regularization import regularization
 from attention_model import *
 from data_preprocessing import song_preprocessing
@@ -28,7 +28,14 @@ if __name__ == "__main__":
     # get Ty
     Ty = song_preprocessing.get_Ty(Tx, S)
 
-    # preprocessing data
+    # preprocessing data X.shape = (m, Tx, n_x) | Y.shape = (m, Ty, n_y)
     X, Y = song_preprocessing.preprocessing_data(songs_dir + "/", Tx, Ty)
-    print(X.shape)
-    print(Y.shape)
+    m = X.shape[0]
+
+    n_x = X.shape[2]
+    n_a = 128
+
+    pre_LSTM = LSTM((Tx, n_x), (Tx, n_a))
+    pre_bi_LSTM = Bidirectional(pre_LSTM, X[0,:,:])
+    A = pre_bi_LSTM.concatLSTM()
+    print(A.shape)
