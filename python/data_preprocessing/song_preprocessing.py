@@ -90,7 +90,7 @@ def preprocessing_data(dir, Tx, Ty):
     x = []
     y = []
     for s in songs:
-        x_temp = graph_spectrogram(dir+s)
+        x_temp, _ = graph_spectrogram(dir+s)
         y_indexes.append(get_y_index(dir, s))
         if(x_temp.shape[1] < Tx):
             missing = Tx - x_temp.shape[1]

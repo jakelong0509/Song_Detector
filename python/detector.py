@@ -21,12 +21,14 @@ if __name__ == "__main__":
     Tx, duration = song_preprocessing.get_Tx(songs_dir + "/")
     sec_per_spec = duration / Tx
     S = np.round(sec / sec_per_spec)
-    print(S)
+
     # return back to main directory
     os.chdir(main_dir)
 
     # get Ty
     Ty = song_preprocessing.get_Ty(Tx, S)
 
-    print(Tx)
-    print(Ty)
+    # preprocessing data
+    X, Y = song_preprocessing.preprocessing_data(songs_dir + "/", Tx, Ty)
+    print(X.shape)
+    print(Y.shape)
