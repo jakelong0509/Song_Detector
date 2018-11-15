@@ -7,8 +7,8 @@ from wrapper import Bidirectional
 class LSTM():
     def __init__(self, input_dim, output_dim):
         """
-        input_dim: dimension of input data (m, Tx, n_x)
-        output_dim: dimension of output hidden state (m, Tx, n_a)
+        input_dim: dimension of input data (Tx, n_x)
+        output_dim: dimension of output hidden state (Tx, n_a)
         """
 
         self.input_dim = input_dim

@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.io import wavfile
 import os
+import sys
 from pydub import AudioSegment
 
 
@@ -15,15 +16,30 @@ def get_songs(dir):
 
     return songs, song_no
 
+
+
 # return Tx of longest song
 def get_Tx(dir):
     Tx = 0
+    duration = 0
     songs, _ = get_songs(dir)
     for s in songs:
-        Tx_temp = graph_spectrogram(dir+s).shape[1]
+        pxx_temp, duration_temp = graph_spectrogram(dir+s)
+        Tx_temp = pxx_temp.shape[1]
         if(Tx_temp > Tx):
             Tx = Tx_temp
-    return Tx
+            duration = duration_temp
+    return Tx, duration
+
+# return Ty
+def get_Ty(Tx, S, jump_step = 100):
+    window = S
+    count = 0;
+    while (window <= Tx):
+        count = count + 1;
+        window = window + jump_step
+    Ty = count
+    return Ty
 
 # create label(y) for training
 def set_labels(y_oh, Ty, index): # y.shape = (Ty, n_y)
@@ -55,6 +71,8 @@ def get_wav_info(wav_file):
 
 def graph_spectrogram(wav_file):
     rate, data = get_wav_info(wav_file)
+    duration = np.round(data.shape[0]/rate)
+
     nfft = 200
     fs = 8000
     noverlap = 120
@@ -63,7 +81,7 @@ def graph_spectrogram(wav_file):
         pxx, freqs, bins, im = plt.specgram(data, nfft, fs, noverlap = noverlap)
     elif nchannels == 2:
         pxx, freqs, bins, im = plt.specgram(data[:,0], nfft, fs, noverlap = noverlap)
-    return pxx
+    return pxx, duration
 
 def preprocessing_data(dir, Tx, Ty):
     songs, n_y = get_songs(dir)

@@ -10,5 +10,3 @@ class regularization():
     def dropout(self, ):
         shape = self.hidden_state.shape
         eye = np.eye(shape)
-
-    def normalization(self):
