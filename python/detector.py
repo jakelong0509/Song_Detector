@@ -1,17 +1,18 @@
 import numpy as np
 import os
 import sys
-
+import progressbar
 from LSTM import LSTM
 from wrapper import Bidirectional
 from Regularization import regularization
 from attention_model import attention_model
 from data_preprocessing import song_preprocessing
 from functions import activations as act, helper_func as func
+from sklearn.preprocessing import normalize
 
 if __name__ == "__main__":
     sec = 5
-    jump_step = 100
+    jump_step = 200
     main_dir = os.getcwd()
 
     # change directory to get songs
@@ -31,19 +32,21 @@ if __name__ == "__main__":
 
     # preprocessing data X.shape = (m, Tx, n_x) | Y.shape = (m, Ty, n_y)
     X, Y = song_preprocessing.preprocessing_data(songs_dir + "/", Tx, Ty)
+
     m = X.shape[0]
 
     n_x = X.shape[2]
+    n_y = Y.shape[2]
     n_a = 64
-
+    X = normalize(X[0,:,:], axis = 0)
     pre_LSTM = LSTM((Tx, n_x), (Tx, n_a))
-    pre_bi_LSTM = Bidirectional(pre_LSTM, X[0,:,:])
+    pre_bi_LSTM = Bidirectional(pre_LSTM, X)
     A = pre_bi_LSTM.concatLSTM() # shape = (Tx, 2 * n_a)
 
     # TODO: dropout A
 
     # attention and post_LSTM
-    n_s = 128
+    n_s = 64
     n_c = n_a * 2
     post_LSTM = LSTM((Ty, n_c), (Ty, n_s))
     start = 0
@@ -53,7 +56,8 @@ if __name__ == "__main__":
     hidden_dimension = [64]
     lstm_S = []
     attentions = []
-    for t in range(Ty):
+    print("Calulating LSTM_S......")
+    for t in progressbar.progressbar(range(Ty)):
         attention = attention_model(A[start:end,:], prev_s, hidden_dimension)
         attentions.append(attention)
         start = start + jump_step
@@ -74,10 +78,21 @@ if __name__ == "__main__":
     Wy = func.xavier((n_s, n_y))
     by = np.zeros((1, n_y))
     Y_hat = []
-    for st in lstm_S:
+    print("Predicting Y")
+    for st in progressbar.progressbar(lstm_S): # st shape = (1.n_s)
         Zy = np.matmul(st, Wy) + by # shape = (1, n_y)
         yt_hat = act.softmax(Zy)
-        Y_hat.append(yt_hat)
+        print("yt ", yt_hat)
+        Y_hat.append(yt_hat.reshape(-1)) # yt_hat after reshape = (n_y,)
 
-    # Y_hat shape = (Ty, 1, n_y)
-    print(A.shape)
+    # Y_hat shape = (Ty, n_y)
+    Y_true = np.array(Y[0,:,:]) # (Ty, n_y)
+    Y_hat = np.array(Y_hat)
+    total_lost = 0
+    print("Lost....")
+    for t in range(Ty):
+        lost = func.t_lost(Y_true[t,:], Y_hat[t,:])
+        total_lost = total_lost + lost
+
+    total_lost = total_lost/Ty
+    print("Total lost = ", total_lost)

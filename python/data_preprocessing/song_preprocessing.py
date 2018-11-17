@@ -98,6 +98,7 @@ def preprocessing_data(dir, Tx, Ty):
             x_temp = np.append(x_temp, zeros, axis = 1)
 
         x.append(x_temp)
+
     x = np.swapaxes(x, 1,2) # x.shape = (m, Tx, n_x)
 
     for i in y_indexes:

@@ -36,3 +36,17 @@ def duplicate(S, n_s, _prev_s, axis):
         ones = np.ones((n_s, S))
         _prev_S = ones * _prev_s
     return _prev_S
+
+def t_lost(y_true, y_hat):
+    """
+    y_true: true label of dataset (n_y,) [one hot]
+    y_hat: predicted value at time step t (n_y,)
+    """
+    return -(np.sum(y_true * np.log(y_hat)))
+
+def normalization(X, Tx):
+    mean = 1/Tx* np.sum(X, axis = 0)
+    X = X - mean
+    variance = 1/Tx * np.sum(X**2, axis = 0)
+    X = X/variance
+    return X

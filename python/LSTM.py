@@ -3,6 +3,7 @@ import os
 import sys
 from functions import activations as act, helper_func as func
 from wrapper import Bidirectional
+import progressbar
 
 class LSTM():
     def __init__(self, input_dim, output_dim):
@@ -61,6 +62,7 @@ class LSTM():
         xt: current data (1, n_x)
         """
         concat = np.concatenate((a_prev, xt), axis = 1)
+
         ctt = act.tanh(np.matmul(concat, np.transpose(self.params["Wc"])) + self.params["bc"])
         fu = act.sigmoid(np.matmul(concat, np.transpose(self.params["Wu"])) + self.params["bu"])
         ff = act.sigmoid(np.matmul(concat, np.transpose(self.params["Wf"])) + self.params["bf"])
@@ -94,7 +96,8 @@ class LSTM():
         else:
             range = np.arange(Tx)
 
-        for t in range:
+        for t in progressbar.progressbar(range):
+
             xt = np.atleast_2d(X[t, :])
             at, ct, cache = self.cell_forward(a_prev, c_prev, xt)
             a_prev = at

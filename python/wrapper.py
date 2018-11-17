@@ -20,7 +20,9 @@ class Bidirectional():
             A_forward: forward hidden state of all time-step (Tx, n_a) -->
             A_backward: backward hidden state of all time-step (Tx, n_a) <--
         """
+        print("Calculating A forward.....")
         A_forward, self.caches_forward = self.forward.forward_propagation(self.X)
+        print("Calculating A backward.....")
         A_backward, self.caches_backward = self.backward.forward_propagation(self.X)
         return A_forward, A_backward
 

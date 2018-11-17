@@ -79,9 +79,10 @@ class attention_model():
 
         # calculate alpha
         # alphas shape = (1,S)
+
         alphas = act.softmax(np.array(_energies).reshape((1,self.S)))
 
         # calculate context of time step t shape=(1,n_c) n_c = n_a
         c = np.matmul(alphas, self._current_A)
-        
+
         return alphas, c, _energies, _caches_t
