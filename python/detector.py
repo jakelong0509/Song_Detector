@@ -82,7 +82,6 @@ if __name__ == "__main__":
     for st in progressbar.progressbar(lstm_S): # st shape = (1.n_s)
         Zy = np.matmul(st, Wy) + by # shape = (1, n_y)
         yt_hat = act.softmax(Zy)
-        print("yt ", yt_hat)
         Y_hat.append(yt_hat.reshape(-1)) # yt_hat after reshape = (n_y,)
 
     # Y_hat shape = (Ty, n_y)
