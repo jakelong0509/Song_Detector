@@ -6,7 +6,7 @@ from wrapper import Bidirectional
 import progressbar
 
 class LSTM():
-    def __init__(self, input_dim, output_dim):
+    def __init__(self, input_dim, output_dim, is_attention = False):
         """
         input_dim: dimension of input data (Tx, n_x)
         output_dim: dimension of output hidden state (Tx, n_a)
@@ -18,7 +18,7 @@ class LSTM():
 
         # a toggle used to decide LSTM_backward
         self.is_backward = False
-
+        self.is_attention = is_attention
         # retrieve dimension
         _, self.n_x = self.input_dim # 256
         _, self.n_a = self.output_dim # 256
@@ -69,8 +69,8 @@ class LSTM():
         fo = act.sigmoid(np.matmul(concat, np.transpose(self.params["Wo"])) + self.params["bo"])
         ct = np.multiply(fu, ctt) + np.multiply(ff, c_prev)
         at = np.multiply(fo, act.tanh(ct))
-
-        cache = (ctt, fu, ff, fo, ct, at, a_prev, c_prev)
+        print("fu: ", fu)
+        cache = (concat, ctt, fu, ff, fo, ct, at, a_prev, c_prev)
         return at, ct, cache
 
     def forward_propagation(self, X):
@@ -107,6 +107,56 @@ class LSTM():
             caches.append(cache)
 
         return np.array(self.A), caches
+
+    # TODO: check dimension
+    def cell_backward(self, dZ, da_next, dc_next, cache_t, Wy, ds_c_next = None):
+
+        concat, ctt, fu, ff, fo, ct, at, a_prev, c_prev = cache_t
+        gradients = {}
+        # derivative of Wy and by
+        dWy = dZ * at
+        dby = dZ
+
+        # derivative of ds at current time-step
+        da_t = dZ * Wy
+        da = None
+        if is_attention:
+            da = da_next + da_t + ds_c_next
+        else:
+            assert(ds_c_next == None)
+            da = da_next + da_t
+
+        # derivative of fo at current time-step
+        dfo = da * act.tanh(ct) * act.backward_sigmoid(fo)
+
+        # derivative of c
+        dc = (da * act.backward_tanh(ct) * fo) + dc_next
+
+        # derivative of ff
+        dff = dc * c_prev * act.backward_sigmoid(ff)
+
+        # derivative of fu
+        dfu = dc *  ctt * act.backward_sigmoid(fu)
+
+        # derivative of ctt
+        dctt = dc * fu * act.backward_tanh(ctt)
+
+        # gate gradients
+        dWf = dff * np.transpose(concat)
+        dWu = dfu * np.transpose(concat)
+        dWo = dfo * np.transpose(concat)
+        dWctt = dctt * np.transpose(concat)
+
+        dbf = dff
+        dbu = dfu
+        dbo = dfo
+        dbctt = dctt
+
+        # previous hidden state gradient
+        da_prev = self.params["Wf"][:, :self.n_a] * dff + self.params["Wu"][:, :self.n_a] * dfu + self.params["Wc"][:, :self.n_a] * dctt + self.params["Wo"][:, :self.n_a] * dfo
+        dX = self.params["Wf"][:, self.n_a:] * dff + self.params["Wu"][:, self.n_a:] * dfu + self.params["Wc"][:, self.n_a:] * dctt + self.params["Wo"][:, self.n_a:] * dfo
+        dc_prev = dc * ff
+
 if __name__ == "__main__":
     input_dim = (10,10,3)
     output_dim = (10,10,5)

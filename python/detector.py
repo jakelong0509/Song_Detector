@@ -95,3 +95,7 @@ if __name__ == "__main__":
 
     total_lost = total_lost/Ty
     print("Total lost = ", total_lost)
+
+
+    dL = 1/Ty
+    
