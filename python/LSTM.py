@@ -62,9 +62,9 @@ class LSTM():
         xt: current data (1, n_x)
         """
         concat = np.concatenate((a_prev, xt), axis = 1)
-        
+        drop_backward = np.ones(concat.shape)
         if is_dropout:
-            concat = act.dropout(concat, level = 0.5)
+            concat, drop_backward = act.dropout(concat, level = 0.5)
 
         ctt = act.tanh(np.matmul(concat, np.transpose(self.params["Wc"])) + self.params["bc"])
         fu = act.sigmoid(np.matmul(concat, np.transpose(self.params["Wu"])) + self.params["bu"])
@@ -72,8 +72,8 @@ class LSTM():
         fo = act.sigmoid(np.matmul(concat, np.transpose(self.params["Wo"])) + self.params["bo"])
         ct = np.multiply(fu, ctt) + np.multiply(ff, c_prev)
         at = np.multiply(fo, act.tanh(ct))
-        print("fu: ", fu)
-        cache = (concat, ctt, fu, ff, fo, ct, at, a_prev, c_prev)
+
+        cache = (concat, ctt, fu, ff, fo, ct, at, a_prev, c_prev, drop_backward)
         return at, ct, cache
 
     def forward_propagation(self, X):
@@ -126,7 +126,7 @@ class LSTM():
         ----Return-----
         gradients: a dictionary of gradients of Wf, Wu, Wo, Wctt, bf, bu, bo, bctt
         """
-        concat, ctt, fu, ff, fo, ct, at, a_prev, c_prev = cache_t
+        concat, ctt, fu, ff, fo, ct, at, a_prev, c_prev, d_drop = cache_t
         gradients = {}
         # derivative of Wy and by
         dWy = dZ * at
@@ -168,8 +168,8 @@ class LSTM():
         dbctt = dctt
 
         # previous hidden state gradient
-        da_prev = self.params["Wf"][:, :self.n_a] * dff + self.params["Wu"][:, :self.n_a] * dfu + self.params["Wc"][:, :self.n_a] * dctt + self.params["Wo"][:, :self.n_a] * dfo
-        dX = self.params["Wf"][:, self.n_a:] * dff + self.params["Wu"][:, self.n_a:] * dfu + self.params["Wc"][:, self.n_a:] * dctt + self.params["Wo"][:, self.n_a:] * dfo
+        da_prev = self.params["Wf"][:, :self.n_a] * dff * d_drop + self.params["Wu"][:, :self.n_a] * dfu * d_drop + self.params["Wc"][:, :self.n_a] * dctt * d_drop + self.params["Wo"][:, :self.n_a] * dfo * d_drop
+        dX = self.params["Wf"][:, self.n_a:] * dff * d_drop + self.params["Wu"][:, self.n_a:] * dfu * d_drop + self.params["Wc"][:, self.n_a:] * dctt * d_drop + self.params["Wo"][:, self.n_a:] * dfo * d_drop
         dc_prev = dc * ff
 
 if __name__ == "__main__":

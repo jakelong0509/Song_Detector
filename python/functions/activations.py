@@ -37,4 +37,4 @@ def backward_softmax(t_hat, i):
 def dropout(input, level):
     noise_shape = input.shape
     noise = np.random.choice([0,1], noise_shape, replace = True, p=[level, 1-level])
-    return input * noise / (1 - level)
+    return input * noise / (1 - level), noise / (1 - level)
