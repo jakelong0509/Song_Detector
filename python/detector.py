@@ -44,7 +44,7 @@ if __name__ == "__main__":
     A = pre_bi_LSTM.concatLSTM() # shape = (Tx, 2 * n_a)
 
     # TODO: dropout A
-
+    A = act.dropout(A, level=0.5)
     # attention and post_LSTM
     n_s = 64
     n_c = n_a * 2
@@ -69,17 +69,18 @@ if __name__ == "__main__":
         prev_s = st
         prev_a = at
 
-    print(np.array(lstm_S).shape)
+    # convert lstm_S(list) to lstm_S(np array)
+    lstm_S = np.array(lastm_S)
     # TODO: dropout lstm_S
-
+    lstm_S = act.dropout(lstm_S, level = 0.5)
     # initialize last layer Wy
-    # Wy shape = ()
+    # Wy shape = (n_s,n_y)
     # st shape = (1,n_s)
     Wy = func.xavier((n_s, n_y))
     by = np.zeros((1, n_y))
     Y_hat = []
     print("Predicting Y")
-    for st in progressbar.progressbar(lstm_S): # st shape = (1.n_s)
+    for st in progressbar.progressbar(lstm_S): # st shape = (1, n_s)
         Zy = np.matmul(st, Wy) + by # shape = (1, n_y)
         yt_hat = act.softmax(Zy)
         Y_hat.append(yt_hat.reshape(-1)) # yt_hat after reshape = (n_y,)

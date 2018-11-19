@@ -6,7 +6,7 @@ from wrapper import Bidirectional
 import progressbar
 
 class LSTM():
-    def __init__(self, input_dim, output_dim, is_attention = False):
+    def __init__(self, input_dim, output_dim, is_attention = False, is_dropout = False):
         """
         input_dim: dimension of input data (Tx, n_x)
         output_dim: dimension of output hidden state (Tx, n_a)
@@ -62,6 +62,9 @@ class LSTM():
         xt: current data (1, n_x)
         """
         concat = np.concatenate((a_prev, xt), axis = 1)
+        
+        if is_dropout:
+            concat = act.dropout(concat, level = 0.5)
 
         ctt = act.tanh(np.matmul(concat, np.transpose(self.params["Wc"])) + self.params["bc"])
         fu = act.sigmoid(np.matmul(concat, np.transpose(self.params["Wu"])) + self.params["bu"])
