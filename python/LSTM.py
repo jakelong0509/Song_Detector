@@ -110,7 +110,19 @@ class LSTM():
 
     # TODO: check dimension
     def cell_backward(self, dZ, da_next, dc_next, cache_t, Wy, ds_c_next = None):
+        """
+        backpropagation of 1 cell of post_LSTM---
+        ----Parameters----
+        dZ: gradient of a = softmax(Z)
+        da_next: gradient of hidden state of the cell after current cell
+        dc_next: gradient of memory state of the cell after current cell
+        cache_t: cache of all values of the current cell (concat, ctt, fu, ff, fo, ct, at, a_prev, c_prev)
+        Wy: weight of last layer
+        ds_c_next: gradient of context of time-step (t+1)
 
+        ----Return-----
+        gradients: a dictionary of gradients of Wf, Wu, Wo, Wctt, bf, bu, bo, bctt
+        """
         concat, ctt, fu, ff, fo, ct, at, a_prev, c_prev = cache_t
         gradients = {}
         # derivative of Wy and by
