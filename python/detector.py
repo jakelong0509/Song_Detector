@@ -98,4 +98,3 @@ if __name__ == "__main__":
 
 
     dL = 1/Ty
-    

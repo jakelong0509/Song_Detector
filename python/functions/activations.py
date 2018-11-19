@@ -4,7 +4,8 @@ def sigmoid(Z):
     return 1/(1+np.exp(-Z))
 
 def hard_sigmoid(Z):
-    return np.atleast_2d(max(0, min(1, Z*0.2 + 0.5)))
+    y = 0.2 * Z + 0.5
+    return np.clip(y, 0, 1)
 
 def tanh(Z):
     return (np.exp(Z) - np.exp(-Z)) / (np.exp(Z) + np.exp(-Z))
