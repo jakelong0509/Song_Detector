@@ -129,7 +129,7 @@ class LSTM():
         gradients: a dictionary of gradients of Wf, Wu, Wo, Wctt, bf, bu, bo, bctt
         """
         concat, ctt, fu, ff, fo, ct, at, a_prev, c_prev, d_ax_drop, d_c_drop = cache_t
-        gradients = {}
+        gradients_t = {}
         # derivative of Wy and by
         dWy = dZ * at
         dby = dZ
@@ -158,12 +158,13 @@ class LSTM():
         # derivative of ctt
         dctt = dc * fu * act.backward_tanh(ctt)
 
-        # gate gradients
+        # gate gradients weight
         dWf = dff * np.transpose(concat)
         dWu = dfu * np.transpose(concat)
         dWo = dfo * np.transpose(concat)
         dWctt = dctt * np.transpose(concat)
 
+        # gate gradients bias
         dbf = dff
         dbu = dfu
         dbo = dfo
@@ -173,6 +174,8 @@ class LSTM():
         da_prev = (self.params["Wf"][:, :self.n_a] * dff + self.params["Wu"][:, :self.n_a] * dfu + self.params["Wc"][:, :self.n_a] * dctt + self.params["Wo"][:, :self.n_a] * dfo) * d_drop[:, :self.n_a]
         dX = (self.params["Wf"][:, self.n_a:] * dff + self.params["Wu"][:, self.n_a:] * dfu + self.params["Wc"][:, self.n_a:] * dctt + self.params["Wo"][:, self.n_a:] * dfo) * d_drop[:, self.n_a:]
         dc_prev = (dc * ff) * d_c_drop
+
+        return gradients_t = {"dWf": dWf, "dWu": dWu, "dWo": dWo, "dWctt": dWctt, "dbf": dbf, "dbu": dbu, "dbo": dfo, "dbctt": dbctt}, dX
 
 if __name__ == "__main__":
     input_dim = (10,10,3)

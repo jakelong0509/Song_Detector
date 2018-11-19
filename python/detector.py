@@ -48,7 +48,7 @@ if __name__ == "__main__":
     # attention and post_LSTM
     n_s = 64
     n_c = n_a * 2
-    post_LSTM = LSTM((Ty, n_c), (Ty, n_s))
+    post_LSTM = LSTM((Ty, n_c), (Ty, n_s), is_attention = True, is_dropout = True)
     start = 0
     end = S
     prev_s = np.zeros((1, n_s))
@@ -72,7 +72,7 @@ if __name__ == "__main__":
     # convert lstm_S(list) to lstm_S(np array)
     lstm_S = np.array(lastm_S)
     # TODO: dropout lstm_S
-    lstm_S = act.dropout(lstm_S, level = 0.5)
+    # lstm_S = act.dropout(lstm_S, level = 0.5)
     # initialize last layer Wy
     # Wy shape = (n_s,n_y)
     # st shape = (1,n_s)
