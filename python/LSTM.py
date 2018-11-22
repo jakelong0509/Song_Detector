@@ -6,7 +6,7 @@ from wrapper import Bidirectional
 import progressbar
 
 class LSTM():
-    def __init__(self, input_dim, output_dim, is_attention = False, is_dropout = False):
+    def __init__(self, input_dim, output_dim, is_attention = False, is_dropout = False, is_lastlayer = False):
         """
         input_dim: dimension of input data (Tx, n_x)
         output_dim: dimension of output hidden state (Tx, n_a)
@@ -19,6 +19,8 @@ class LSTM():
         # a toggle used to decide LSTM_backward
         self.is_backward = False
         self.is_attention = is_attention
+        self.is_lastlayer = is_lastlayer
+        self.is_dropout = is_dropout
         # retrieve dimension
         _, self.n_x = self.input_dim # 256
         _, self.n_a = self.output_dim # 256
@@ -61,10 +63,10 @@ class LSTM():
         c_prev: cell memory of previous iteration (1, n_a)
         xt: current data (1, n_x)
         """
-        concat = np.concatenate((a_prev, xt), axis = 1)
+        concat = np.concatenate((a_prev, xt), axis = 1) # shape = (1, n_a + n_x)
         d_ax_drop = np.ones(concat.shape)
         d_c_drop = np.ones(concat.shape)
-        if is_dropout:
+        if self.is_dropout:
             concat, d_ax_drop = act.dropout(concat, level = 0.5)
             c_prev, d_c_drop = act.dropout(c_prev, level = 0.5)
 
@@ -73,7 +75,7 @@ class LSTM():
         ff = act.sigmoid(np.matmul(concat, np.transpose(self.params["Wf"])) + self.params["bf"])
         fo = act.sigmoid(np.matmul(concat, np.transpose(self.params["Wo"])) + self.params["bo"])
         ct = np.multiply(fu, ctt) + np.multiply(ff, c_prev)
-        at = np.multiply(fo, act.tanh(ct))
+        at = np.multiply(fo, act.tanh(ct)) # shape = (1,n_a)
 
         cache = (concat, ctt, fu, ff, fo, ct, at, a_prev, c_prev, d_ax_drop, d_c_drop)
         return at, ct, cache
@@ -87,7 +89,7 @@ class LSTM():
             c_prev = c_next
         """
         Tx, n_x = X.shape
-        caches = []
+        self.caches = []
         self.A = []
         a0 = np.zeros((1, self.n_a))
         c0 = np.zeros((1, self.n_a))
@@ -109,16 +111,16 @@ class LSTM():
 
             c_prev = ct
             self.A.append(at.reshape(-1))
-            caches.append(cache)
+            self.caches.append(cache)
 
-        return np.array(self.A), caches
+        return np.array(self.A), self.caches
 
     # TODO: check dimension
     def cell_backward(self, dZ, da_next, dc_next, cache_t, Wy, ds_c_next = None):
         """
-        backpropagation of 1 cell of post_LSTM---
+        backpropagation of 1 cell of LSTM---
         ----Parameters----
-        dZ: gradient of a = softmax(Z)
+        dZ: gradient of a = softmax(Z) at time step t (1,n_y)
         da_next: gradient of hidden state of the cell after current cell
         dc_next: gradient of memory state of the cell after current cell
         cache_t: cache of all values of the current cell (concat, ctt, fu, ff, fo, ct, at, a_prev, c_prev)
@@ -130,12 +132,9 @@ class LSTM():
         """
         concat, ctt, fu, ff, fo, ct, at, a_prev, c_prev, d_ax_drop, d_c_drop = cache_t
         gradients_t = {}
-        # derivative of Wy and by
-        dWy = dZ * at
-        dby = dZ
 
         # derivative of ds at current time-step
-        da_t = dZ * Wy
+        da_t = mp.matmul(dZ, np.transpose(Wy)) # shape = (1,n_a)
         da = None
         if is_attention:
             da = da_next + da_t + ds_c_next
@@ -144,38 +143,80 @@ class LSTM():
             da = da_next + da_t
 
         # derivative of fo at current time-step
+        # shape = (1,n_a)
         dfo = da * act.tanh(ct) * act.backward_sigmoid(fo)
 
         # derivative of c
+        # shape = (1,n_a)
         dc = (da * act.backward_tanh(ct) * fo) + dc_next
 
         # derivative of ff
+        # shape = (1,n_a)
         dff = dc * c_prev * act.backward_sigmoid(ff)
 
         # derivative of fu
+        # shape = (1,n_a)
         dfu = dc *  ctt * act.backward_sigmoid(fu)
 
         # derivative of ctt
+        # shape = (1,n_a)
         dctt = dc * fu * act.backward_tanh(ctt)
 
         # gate gradients weight
+        # shape = (n_a, n_a + n_x)
         dWf = dff * np.transpose(concat)
         dWu = dfu * np.transpose(concat)
         dWo = dfo * np.transpose(concat)
         dWctt = dctt * np.transpose(concat)
 
+
         # gate gradients bias
+        # shape = (1, n_a)
         dbf = dff
         dbu = dfu
         dbo = dfo
         dbctt = dctt
 
         # previous hidden state gradient
-        da_prev = (self.params["Wf"][:, :self.n_a] * dff + self.params["Wu"][:, :self.n_a] * dfu + self.params["Wc"][:, :self.n_a] * dctt + self.params["Wo"][:, :self.n_a] * dfo) * d_drop[:, :self.n_a]
-        dX = (self.params["Wf"][:, self.n_a:] * dff + self.params["Wu"][:, self.n_a:] * dfu + self.params["Wc"][:, self.n_a:] * dctt + self.params["Wo"][:, self.n_a:] * dfo) * d_drop[:, self.n_a:]
+        da_prev = (self.params["Wf"][:, :self.n_a] * dff + self.params["Wu"][:, :self.n_a] * dfu + self.params["Wc"][:, :self.n_a] * dctt + self.params["Wo"][:, :self.n_a] * dfo) * d_ax_drop[:, :self.n_a]
+        dX = (self.params["Wf"][:, self.n_a:] * dff + self.params["Wu"][:, self.n_a:] * dfu + self.params["Wc"][:, self.n_a:] * dctt + self.params["Wo"][:, self.n_a:] * dfo) * d_ax_drop[:, self.n_a:]
         dc_prev = (dc * ff) * d_c_drop
 
-        return gradients_t = {"dWf": dWf, "dWu": dWu, "dWo": dWo, "dWctt": dWctt, "dbf": dbf, "dbu": dbu, "dbo": dfo, "dbctt": dbctt}, dX
+        gradients_t = {"dWf": dWf, "dWu": dWu, "dWo": dWo, "dWctt": dWctt, "dbf": dbf, "dbu": dbu, "dbo": dfo, "dbctt": dbctt}
+
+        # derivative of Wy and by is last layer
+        if self.is_lastlayer:
+            dWy = dZ * at
+            dby = dZ
+            gradients_t["dWy"] = dWy
+            gradients_t["dby"] = dby
+
+
+        return gradients_t, dX, da_prev, dc_prev
+
+
+    def lastlayer_backpropagation(self, dL, Y_true, Y_hat, Wy, attention_model):
+        """
+        ----backpropagation for LSTM layer--
+        Parameters:
+            dL: gradients of lost function at all time step (1/Ty)
+            Y_true: true label (Ty, n_y)
+            Y_hat: predicted label - result from model (Ty, n_y)
+            attention_model: attention object
+
+        """
+        Ty, n_y = Y_true.shape
+        # gradient of Z where Y_hat = g(Z) - softmax
+        # dZ shape = (Ty, n_y)
+        dZ = Y_hat - Y_true
+        da_next_2 = np.zeros((1,self.n_a))
+        dc_next = np.zeros((1,self.n_a))
+        ds_c_next = np.zeros((1,self.n_a))
+        for t in reversed(range(Ty)):
+            gradients, dX, da_prev, dc_prev = cell_backward(dZ[t,:], da_next_2, dc_next, self.caches[t], Wy, ds_c_next)
+            da_next_2 = da_prev
+            dc_next = dc_prev
+            # TODO: attention model cell_backpropagation to calc ds_c_prev [ds_c_next = ds_c_prev]
 
 if __name__ == "__main__":
     input_dim = (10,10,3)

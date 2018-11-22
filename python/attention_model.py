@@ -64,7 +64,7 @@ class attention_model():
         # last layer
         Z_last = np.matmul(input, self._params["We"]) + self._params["be"]
         energy = act.relu(Z_last)
-        cache_last = (input, Z, e)
+        cache_last = (input, Z_last, energy)
         caches_t_s.append(cache_last)
 
         return energy, caches_t_s
@@ -86,3 +86,5 @@ class attention_model():
         c = np.matmul(alphas, self._current_A)
 
         return alphas, c, _energies, _caches_t
+
+    def nn_cell_backward_propagation(self):
