@@ -23,8 +23,8 @@ class attention_model():
         self._prev_s = _prev_s
         self.S, self.n_a = _current_A.shape
         self.n_s = _prev_s.shape[1]
-
-
+        self._alphas = None
+        self._caches_t = []
         # call duplicate function fron functions module to duplicate _prev_s from (1,n_s) to (S, n_s)
         self._prev_S = func.duplicate(self.S, self.n_s, self._prev_s, axis = 0)
 
@@ -70,21 +70,76 @@ class attention_model():
         return energy, caches_t_s
 
     def nn_forward_propagation(self):
-        _caches_t = []
         _energies = []
         for s in range(self.S):
             energy, caches_t_s = self.nn_cell_forward(self._SA_concat[s,:].reshape((1, self.n_a + self.n_s)))
-            _caches_t.append(caches_t_s)
+            self._caches_t.append(caches_t_s)
             _energies.append(energy)
 
         # calculate alpha
         # alphas shape = (1,S)
 
-        alphas = act.softmax(np.array(_energies).reshape((1,self.S)))
+        self._alphas = act.softmax(np.array(_energies).reshape((1,self.S)))
 
-        # calculate context of time step t shape=(1,n_c) n_c = n_a
-        c = np.matmul(alphas, self._current_A)
+        # calculate context of time step t shape=(1,n_c) n_c = 2*n_a
+        c = np.matmul(self._alphas, self._current_A)
 
-        return alphas, c, _energies, _caches_t
+        return self._alphas, c, _energies, self._caches_t
 
-    def nn_cell_backward_propagation(self):
+    def nn_cell_backward_propagation(self, dC, alpha, a_s, cache_t_s):
+        """
+        ---return----
+            d_at_s: gradient of hidden state from alpha
+            d_ac_s: gradient of hidden state from context
+            d_s_prev_s: gradient of hidden state of post_LSTM
+        """
+        gradients = {}
+        # dC shape = (1, 2*n_a)
+        # a_s = (1, 2 * n_a)
+        # shape = (1, 1)
+        d_alpha = np.matmul(dC, np.transpose(a_s))
+
+        # shape = (1, 1)
+        d_energy = d_alpha * (alpha * (1 - alpha))
+        first = True
+        # not count last layer
+        count = len(cache_t_s) - 1
+        d_Z_last = None
+        W = self._params["We"]
+
+        for cache in reversed(cache_t_s):
+            input, Z, e = cache
+            if (first):
+                # shape = (1 , 1)
+                d_Z_last = d_energy * act.backward_relu(Z)
+
+                # shape = (1,10)
+                dWe = np.matmul(d_Z_last, input)
+                dbe = d_Z_last
+                gradients["dWe"] = dWe
+                gradients["dbe"] = dbe
+                first = False
+            else:
+                dZ = np.matmul(d_Z_last, np.transpose(W)) * act.backward_tanh(Z)
+                dW = np.matmul(np.transpose(input), dZ)
+                db = dZ
+                gradients["dW"+str(count)] = dW
+                gradients["db"+str(count)] = db
+                W = self._params["W"+str(count)]
+                d_Z_last = dZ
+                count = count - 1
+        d_input = np.matmul(d_Z_last, np.transpose(W)) # shape = (1, 2 * n_a + n_s)
+        d_at_s = d_input[:, :self.n_a] # shape = (1, 2 * n_a)
+        d_s_prev_s = d_input[:, self.n_a:] # shape = (1, n_s)
+        d_ca_s = dC * alpha
+        return d_at_s, d_s_prev_s, d_ca_s
+
+    def nn_backward_propagation(self, dC):
+        d_AS = []
+        d_s_prev = np.zeros((1, self.n_s))
+        for s in reversed(range(self.S)):
+            d_at_s, d_s_prev_s, d_ca_s = nn_cell_backward_propagation(dC, np.atleast_2d(self._alphas[s]), np.atleast_2d(self._current_A[s]), self._caches_t[s])
+            d_AS.append(d_at_s + d_ca_s)
+            d_s_prev = d_s_prev + d_s_prev_s
+
+        return d_s_prev, d_AS

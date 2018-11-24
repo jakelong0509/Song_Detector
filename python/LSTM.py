@@ -178,15 +178,18 @@ class LSTM():
         dbctt = dctt
 
         # previous hidden state gradient
-        da_prev = (self.params["Wf"][:, :self.n_a] * dff + self.params["Wu"][:, :self.n_a] * dfu + self.params["Wc"][:, :self.n_a] * dctt + self.params["Wo"][:, :self.n_a] * dfo) * d_ax_drop[:, :self.n_a]
-        dX = (self.params["Wf"][:, self.n_a:] * dff + self.params["Wu"][:, self.n_a:] * dfu + self.params["Wc"][:, self.n_a:] * dctt + self.params["Wo"][:, self.n_a:] * dfo) * d_ax_drop[:, self.n_a:]
+        # da_prev shape = (1,n_a)
+        # dc_prev shape = (1,n_a)
+        # dX shape = (1,n_x)
+        da_prev = (np.matmul(dff, self.params["Wf"][:, :self.n_a]) + np.matmul(dfu, self.params["Wu"][:, :self.n_a]) + np.matmul(dctt, self.params["Wc"][:, :self.n_a]) + np.matmul(dfo, self.params["Wo"][:, :self.n_a])) * d_ax_drop[:, :self.n_a]
+        dX = (np.matmul(dff, self.params["Wf"][:, self.n_a:]) + np.matmul(dfu, self.params["Wu"][:, self.n_a:]) + np.matmul(dctt, self.params["Wc"][:, self.n_a:]) + np.matmul(dfo, self.params["Wo"][:, self.n_a:])) * d_ax_drop[:, self.n_a:]
         dc_prev = (dc * ff) * d_c_drop
 
         gradients_t = {"dWf": dWf, "dWu": dWu, "dWo": dWo, "dWctt": dWctt, "dbf": dbf, "dbu": dbu, "dbo": dfo, "dbctt": dbctt}
 
         # derivative of Wy and by is last layer
         if self.is_lastlayer:
-            dWy = dZ * at
+            dWy = np.matmul(np.transpose(at), dZ) # shape = (n_a, n_y)
             dby = dZ
             gradients_t["dWy"] = dWy
             gradients_t["dby"] = dby

@@ -26,7 +26,7 @@ def backward_tanh(Z):
 def backward_relu(Z):
     if Z > 0:
         return 1
-    elif Z < 0:
+    elif Z <= 0:
         return 0
 
 def backward_softmax(t_hat, i):
@@ -35,6 +35,6 @@ def backward_softmax(t_hat, i):
 
 # based on keras drop out
 def dropout(input, level):
-    noise_shape = input.shape
+    noise_shape = input.shape # (Tx, n_a)
     noise = np.random.choice([0,1], noise_shape, replace = True, p=[level, 1-level])
     return input * noise / (1 - level), noise / (1 - level)

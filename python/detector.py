@@ -39,16 +39,18 @@ if __name__ == "__main__":
     n_y = Y.shape[2]
     n_a = 64
     X = normalize(X[0,:,:], axis = 0)
+
     pre_LSTM = LSTM((Tx, n_x), (Tx, n_a))
     pre_bi_LSTM = Bidirectional(pre_LSTM, X)
     A = pre_bi_LSTM.concatLSTM() # shape = (Tx, 2 * n_a)
 
     # TODO: dropout A
-    A = act.dropout(A, level=0.5)
+    A = np.array(act.dropout(A, level=0.5)[0])
+
     # attention and post_LSTM
     n_s = 64
     n_c = n_a * 2
-    post_LSTM = LSTM((Ty, n_c), (Ty, n_s), is_attention = True, is_dropout = True)
+    post_LSTM = LSTM((Ty, n_c), (Ty, n_s), is_attention = True, is_dropout = True, is_lastlayer = True)
     start = 0
     end = S
     prev_s = np.zeros((1, n_s))
@@ -70,7 +72,7 @@ if __name__ == "__main__":
         prev_a = at
 
     # convert lstm_S(list) to lstm_S(np array)
-    lstm_S = np.array(lastm_S)
+    lstm_S = np.array(lstm_S)
     # TODO: dropout lstm_S
     # lstm_S = act.dropout(lstm_S, level = 0.5)
     # initialize last layer Wy
@@ -92,10 +94,11 @@ if __name__ == "__main__":
     print("Lost....")
     for t in range(Ty):
         lost = func.t_lost(Y_true[t,:], Y_hat[t,:])
+        print(lost)
         total_lost = total_lost + lost
 
-    total_lost = total_lost/Ty
+    total_lost = -(total_lost/Ty) # minimize total_lost = maximize P
     print("Total lost = ", total_lost)
 
 
-    dL = 1/Ty
+    dL = -(1/Ty)
