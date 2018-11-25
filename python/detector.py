@@ -37,7 +37,7 @@ if __name__ == "__main__":
 
     n_x = X.shape[2]
     n_y = Y.shape[2]
-    n_a = 64
+    n_a = 32
     X = normalize(X[0,:,:], axis = 0)
 
     pre_LSTM = LSTM((Tx, n_x), (Tx, n_a))
@@ -57,15 +57,20 @@ if __name__ == "__main__":
     prev_a = np.zeros((1, n_s))
     hidden_dimension = [64]
     lstm_S = []
-    attentions = []
+    attention = attention_model(A, S, n_s, hidden_dimension)
+    Att_As = []
+    Att_caches = []
+    Att_alphas = []
     print("Calulating LSTM_S......")
     for t in progressbar.progressbar(range(Ty)):
-        attention = attention_model(A[start:end,:], prev_s, hidden_dimension)
-        attentions.append(attention)
+        alphas, c, _energies, _caches_t, current_A = attention.nn_forward_propagation(prev_s, start, end)
         start = start + jump_step
         end = end + jump_step
+        # for backpropagation use
+        Att_As.append(current_A)
+        Att_caches.append(_caches_t)
+        Att_alphas.append(alphas)
 
-        alphas, c, _energies, _caches_t = attention.nn_forward_propagation()
         st, at, cache = post_LSTM.cell_forward(prev_s, prev_a, c)
         lstm_S.append(st)
         prev_s = st
@@ -94,11 +99,12 @@ if __name__ == "__main__":
     print("Lost....")
     for t in range(Ty):
         lost = func.t_lost(Y_true[t,:], Y_hat[t,:])
-        print(lost)
         total_lost = total_lost + lost
 
     total_lost = -(total_lost/Ty) # minimize total_lost = maximize P
-    print("Total lost = ", total_lost)
+    print(total_lost)
 
 
     dL = -(1/Ty)
+    gradients = post_LSTM.lastlayer_backpropagation(dL, Y_true, Y_hat, Wy, Att_As, Att_caches, Att_alphas, attention)
+    print(gradients["dWy"])

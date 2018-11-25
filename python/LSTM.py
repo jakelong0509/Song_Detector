@@ -15,6 +15,7 @@ class LSTM():
         self.input_dim = input_dim
         self.output_dim = output_dim
         self.params = {}
+        self.caches = []
 
         # a toggle used to decide LSTM_backward
         self.is_backward = False
@@ -78,6 +79,7 @@ class LSTM():
         at = np.multiply(fo, act.tanh(ct)) # shape = (1,n_a)
 
         cache = (concat, ctt, fu, ff, fo, ct, at, a_prev, c_prev, d_ax_drop, d_c_drop)
+        self.caches.append(cache)
         return at, ct, cache
 
     def forward_propagation(self, X):
@@ -89,7 +91,6 @@ class LSTM():
             c_prev = c_next
         """
         Tx, n_x = X.shape
-        self.caches = []
         self.A = []
         a0 = np.zeros((1, self.n_a))
         c0 = np.zeros((1, self.n_a))
@@ -111,9 +112,9 @@ class LSTM():
 
             c_prev = ct
             self.A.append(at.reshape(-1))
-            self.caches.append(cache)
 
-        return np.array(self.A), self.caches
+
+        return np.array(self.A)
 
     # TODO: check dimension
     def cell_backward(self, dZ, da_next, dc_next, cache_t, Wy, ds_c_next = None):
@@ -134,9 +135,9 @@ class LSTM():
         gradients_t = {}
 
         # derivative of ds at current time-step
-        da_t = mp.matmul(dZ, np.transpose(Wy)) # shape = (1,n_a)
+        da_t = np.matmul(dZ, np.transpose(Wy)) # shape = (1,n_a)
         da = None
-        if is_attention:
+        if self.is_attention:
             da = da_next + da_t + ds_c_next
         else:
             assert(ds_c_next == None)
@@ -198,7 +199,7 @@ class LSTM():
         return gradients_t, dX, da_prev, dc_prev
 
 
-    def lastlayer_backpropagation(self, dL, Y_true, Y_hat, Wy, attention_model):
+    def lastlayer_backpropagation(self, dL, Y_true, Y_hat, Wy, Att_As, Att_caches, Att_alphas, attention):
         """
         ----backpropagation for LSTM layer--
         Parameters:
@@ -215,12 +216,15 @@ class LSTM():
         da_next_2 = np.zeros((1,self.n_a))
         dc_next = np.zeros((1,self.n_a))
         ds_c_next = np.zeros((1,self.n_a))
-        for t in reversed(range(Ty)):
-            gradients, dX, da_prev, dc_prev = cell_backward(dZ[t,:], da_next_2, dc_next, self.caches[t], Wy, ds_c_next)
+        print("Calculating Gradient......")
+        for t in progressbar.progressbar(reversed(range(Ty))):
+            gradients, dX, da_prev, dc_prev = self.cell_backward(np.atleast_2d(dZ[t,:]), da_next_2, dc_next, self.caches[t], Wy, ds_c_next)
             da_next_2 = da_prev
             dc_next = dc_prev
-            # TODO: attention model cell_backpropagation to calc ds_c_prev [ds_c_next = ds_c_prev]
 
+            # TODO: attention model cell_backpropagation to calc ds_c_prev [ds_c_next = ds_c_prev]
+            ds_c_next, d_AS = attention.nn_backward_propagation(dX, Att_alphas[t], Att_As[t], Att_caches[t])
+        return gradients
 if __name__ == "__main__":
     input_dim = (10,10,3)
     output_dim = (10,10,5)
