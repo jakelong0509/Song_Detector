@@ -229,7 +229,7 @@ class LSTM():
             gradients: weight and bias gradients of entire layer (list)
         """
         if not self.is_attention:
-            assert(Att_As == None, Att_caches == None, Att_alphas == None, attention == None)
+            assert(Att_As == None and Att_caches == None and Att_alphas == None and attention == None)
 
         Ty, n_y = Y_true.shape
         # gradient of Z where Y_hat = g(Z) - softmax
