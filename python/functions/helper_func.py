@@ -44,6 +44,9 @@ def t_lost(y_true, y_hat):
     """
     return -(np.sum(y_true * np.log(y_hat)))
 
+#def adam_optimizer(lr, beta1, beta2, decay):
+
+
 def normalization(X, Tx):
     mean = 1/Tx* np.sum(X, axis = 0)
     X = X - mean

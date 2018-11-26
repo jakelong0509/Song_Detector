@@ -1,4 +1,6 @@
 import numpy as np
+from threading import Thread
+
 from functions import helper_func as func, activations as act
 
 class attention_model():
@@ -25,6 +27,7 @@ class attention_model():
         self.n_a = self._A.shape[1]
         self.n_s = n_s
         self.n_x = self.n_a + self.n_s
+        self.gradients = []
         # initialize weight for model
         # input to neural have shape = (1, n_a + n_s)
         self._params = {}
@@ -139,15 +142,72 @@ class attention_model():
 
     def nn_backward_propagation(self, dC, _alphas, _current_A, _caches_t):
         """
-            
+
         """
         d_AS = []
         d_s_prev = np.zeros((1, self.n_s))
         alphas = _alphas.reshape(-1)
+        gradients_t = []
         for s in reversed(range(self.S)):
             alpha = np.atleast_2d(alphas[s])
             d_at_s, d_s_prev_s, d_ca_s, gradients = self.nn_cell_backward_propagation(dC, alpha, np.atleast_2d(_current_A[s]), _caches_t[s])
             d_AS.append(d_at_s + d_ca_s)
             d_s_prev = d_s_prev + d_s_prev_s
+            gradients_t.append(gradients)
 
-        return d_s_prev, d_AS
+        return d_s_prev, d_AS, gradients_t
+
+
+    def gradient_thread(self, gradient_fac, result, index):
+        grads = {k: np.zeros_like(v) for k,v in gradient_fac[0].items()}
+        for grad in gradient_fac:
+            for k in grad.keys():
+                grads[k] = grads[k] + grad[k]
+
+        result[index] = grads
+
+    def cell_update_gradient_t(self, gradients_t, thread_no):
+        """
+        gradients_t: a list of dictionary of gradient at time step t
+        """
+        grads = {k: np.zeros_like(v) for k,v in gradients_t[0].items()}
+        results = [None] * thread_no
+        threads = [None] * thread_no
+        # for grad in gradients_t:
+        #     for k in grad.keys():
+        #         grads[k] = grads[k] + grad[k]
+        s = int(np.round(self.S / thread_no))
+        start = 0
+        end = s
+
+        for i in range(len(threads)):
+            threads[i] = Thread(target=self.gradient_thread, args=(gradients_t[start:end], results, i))
+            threads[i].start()
+            start = end
+            end = end + s
+
+        for i in range(len(threads)):
+            threads[i].join()
+
+        for k in grads.keys():
+            for i in range(len(threads)):
+                grads[k] = grads[k] + results[i][k]
+
+        self.gradients.append(grads)
+
+    def update_gradient_layer(self):
+        grads = {k: np.zeros_like(v) for k,v in self.gradients[0].items()}
+        for grad in self.gradients:
+            for k in grad.keys():
+                grads[k] = grads[k] + grad[k]
+
+        return grads
+
+    def update_layer(self, lr):
+        grads = self.update_gradient_layer()
+        for i in range(len(self._layer)):
+            self._params["W"+str(i+1)] = self._params["W"+str(i+1)] - lr*grads["dW"+str(i+1)]
+            self._params["b"+str(i+1)] = self._params["b"+str(i+1)] - lr*grads["db"+str(i+1)]
+
+        self._params["We"] = self._params["We"] - lr*grads["dWe"]
+        self._params["be"] = self._params["be"] - lr*grads["dbe"]

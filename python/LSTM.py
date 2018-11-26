@@ -16,6 +16,7 @@ class LSTM():
         self.output_dim = output_dim
         self.params = {}
         self.caches = []
+        self.gradients = None
 
         # a toggle used to decide LSTM_backward
         self.is_backward = False
@@ -165,10 +166,10 @@ class LSTM():
 
         # gate gradients weight
         # shape = (n_a, n_a + n_x)
-        dWf = dff * np.transpose(concat)
-        dWu = dfu * np.transpose(concat)
-        dWo = dfo * np.transpose(concat)
-        dWctt = dctt * np.transpose(concat)
+        dWf = np.matmul(np.transpose(dff), concat)
+        dWu = np.matmul(np.transpose(dfu), concat)
+        dWo = np.matmul(np.transpose(dfo), concat)
+        dWctt = np.matmul(np.transpose(dctt), concat)
 
 
         # gate gradients bias
@@ -206,8 +207,11 @@ class LSTM():
             dL: gradients of lost function at all time step (1/Ty)
             Y_true: true label (Ty, n_y)
             Y_hat: predicted label - result from model (Ty, n_y)
-            attention_model: attention object
-
+            attention: attention layer object
+            Wy: weight of last layer (n_s, n_y)
+            Att_As: Hidden state of pre_LSTM
+            Att_caches: cache value of attention model
+            Att_alphas: alphas of attention model
         """
         Ty, n_y = Y_true.shape
         # gradient of Z where Y_hat = g(Z) - softmax
@@ -216,15 +220,49 @@ class LSTM():
         da_next_2 = np.zeros((1,self.n_a))
         dc_next = np.zeros((1,self.n_a))
         ds_c_next = np.zeros((1,self.n_a))
+        gradients = []
         print("Calculating Gradient......")
         for t in progressbar.progressbar(reversed(range(Ty))):
-            gradients, dX, da_prev, dc_prev = self.cell_backward(np.atleast_2d(dZ[t,:]), da_next_2, dc_next, self.caches[t], Wy, ds_c_next)
+            gradients_t, dX, da_prev, dc_prev = self.cell_backward(np.atleast_2d(dZ[t,:]), da_next_2, dc_next, self.caches[t], Wy, ds_c_next)
             da_next_2 = da_prev
             dc_next = dc_prev
-
+            gradients.append(gradients_t)
             # TODO: attention model cell_backpropagation to calc ds_c_prev [ds_c_next = ds_c_prev]
-            ds_c_next, d_AS = attention.nn_backward_propagation(dX, Att_alphas[t], Att_As[t], Att_caches[t])
+            ds_c_next, d_AS, att_gradients_t = attention.nn_backward_propagation(dX, Att_alphas[t], Att_As[t], Att_caches[t])
+
+            attention.cell_update_gradient_t(att_gradients_t, 4)
+
+
         return gradients
+
+    def update_gradient(self, gradients):
+        """
+        ----parameters-----
+        gradients: a list of gradient dictionary at time step t in Ty
+        """
+        grads = {k: np.zeros_like(v) for k,v in gradients[0].items()}
+        for grad in gradients:
+            for k in grad.keys():
+                grads[k] = grads[k] + grad[k]
+
+        self.gradients = grads
+
+    def update_weight(self, gradients, lr):
+
+        self.update_gradient(gradients)
+
+        self.params["Wc"] = self.params["Wc"] - lr*self.gradients["dWctt"]
+        self.params["bc"] = self.params["bc"] - lr*self.gradients["dbctt"]
+
+        self.params["Wf"] = self.params["Wf"] - lr*self.gradients["dWf"]
+        self.params["bf"] = self.params["bf"] - lr*self.gradients["dbf"]
+
+        self.params["Wo"] = self.params["Wo"] - lr*self.gradients["dWo"]
+        self.params["bo"] = self.params["bo"] - lr*self.gradients["dbo"]
+
+        self.params["Wu"] = self.params["Wu"] - lr*self.gradients["dWu"]
+        self.params["bu"] = self.params["bu"] - lr*self.gradients["dbu"]
+
 if __name__ == "__main__":
     input_dim = (10,10,3)
     output_dim = (10,10,5)
