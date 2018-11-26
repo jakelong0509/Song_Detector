@@ -50,14 +50,16 @@ if __name__ == "__main__":
     # attention and post_LSTM
     n_s = 64
     n_c = n_a * 2
+    hidden_dimension = [64]
+    attention = attention_model(A, S, n_s, hidden_dimension)
     post_LSTM = LSTM((Ty, n_c), (Ty, n_s), is_attention = True, is_dropout = True, is_lastlayer = True)
     start = 0
     end = S
+    
     prev_s = np.zeros((1, n_s))
     prev_a = np.zeros((1, n_s))
-    hidden_dimension = [64]
+
     lstm_S = []
-    attention = attention_model(A, S, n_s, hidden_dimension)
     Att_As = []
     Att_caches = []
     Att_alphas = []

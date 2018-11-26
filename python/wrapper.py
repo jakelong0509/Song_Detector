@@ -14,7 +14,7 @@ class Bidirectional():
         self.dA_backward = None
         self.X = X
         self.Tx, self.n_x = X.shape
-        self.output = None
+        self.concat = None
     def bi_forward(self):
         """
         -----------------------
@@ -32,8 +32,8 @@ class Bidirectional():
     # concat forward hidden state and backward hidden state
     def concatLSTM(self):
         A_forward, A_backward = self.bi_forward()
-        self.output = np.concatenate((A_forward, A_backward), axis = 1) # shape = (Tx, 2*n_a)
-        return
+        self.concat = np.concatenate((A_forward, A_backward), axis = 1) # shape = (Tx, 2*n_a)
+        return self.concat
 
     def accumulate_dA(self, att_dA_list, jump_step, Ty):
         # att_dA_list 1 -> Ty
