@@ -11,7 +11,7 @@ class attention_model():
         S: scalar number - width of windows
         n_s: scalar number - dimension of s_prev
         layer_dimsion: dimension of hidden layer (type = list)
-        A: hidden state (Tx, 2 * n_a)
+        A: concat hidden state of Bidirectional LSTM (Tx, 2 * n_a)
         -----Return-------
         _c_t: context at time-step t in Ty
         """
@@ -24,7 +24,7 @@ class attention_model():
 
         self._A = A
         self.S = S
-        self.n_a = self._A.shape[1]
+        self.n_a = self._A.shape[1] # n_a of concat => n_a_concat = 2 * n_a_normal
         self.n_s = n_s
         self.n_x = self.n_a + self.n_s
         self.gradients = []
