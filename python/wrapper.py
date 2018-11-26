@@ -3,7 +3,8 @@ import copy
 
 
 class Bidirectional():
-    def __init__(self, layer, X):
+    def __init__(self, name, layer):
+        self.name = name
         self.forward = copy.copy(layer)
 
         self.backward = copy.copy(layer)
@@ -12,10 +13,9 @@ class Bidirectional():
 
         self.dA_forward = None
         self.dA_backward = None
-        self.X = X
         self.Tx, self.n_x = X.shape
         self.concat = None
-    def bi_forward(self):
+    def bi_forward(self, X):
         """
         -----------------------
         Return:
@@ -23,15 +23,15 @@ class Bidirectional():
             A_backward: backward hidden state of all time-step (Tx, n_a) <--
         """
         print("Calculating A forward.....")
-        A_forward = self.forward.forward_propagation(self.X)
+        A_forward = self.forward.forward_propagation(X)
         print("Calculating A backward.....")
-        A_backward = self.backward.forward_propagation(self.X)
+        A_backward = self.backward.forward_propagation(X)
         return A_forward, A_backward
 
 
     # concat forward hidden state and backward hidden state
-    def concatLSTM(self):
-        A_forward, A_backward = self.bi_forward()
+    def concatLSTM(self, X):
+        A_forward, A_backward = self.bi_forward(X)
         self.concat = np.concatenate((A_forward, A_backward), axis = 1) # shape = (Tx, 2*n_a)
         return self.concat
 
@@ -55,7 +55,7 @@ class Bidirectional():
         self.dA_backward = dA[:, n_a:]
 
     def cell_backpropagation(self, att_dA_list, jump_step, Ty):
-        
+
         self.accumulate_dA(att_dA_list, jump_step, Ty)
 
         forward_gradients = self.forward.backward_propagation(self.dA_forward)

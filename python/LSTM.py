@@ -6,7 +6,7 @@ from wrapper import Bidirectional
 import progressbar
 
 class LSTM():
-    def __init__(self, input_dim, output_dim, is_attention = False, is_dropout = False):
+    def __init__(self, name, input_dim, output_dim, is_attention = False, is_dropout = False):
         """
         input_dim: dimension of input data (Tx, n_x)
         output_dim: dimension of output hidden state (Tx, n_a)
@@ -17,7 +17,7 @@ class LSTM():
         self.params = {}
         self.caches = []
         self.gradients = None
-
+        self.name = name
         # a toggle used to decide LSTM_backward
         self.is_backward = False
         self.is_attention = is_attention

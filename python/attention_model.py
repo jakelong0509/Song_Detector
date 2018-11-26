@@ -4,7 +4,7 @@ from threading import Thread
 from functions import helper_func as func, activations as act
 
 class attention_model():
-    def __init__(self, unit, A, S, n_s, layer_dimension):
+    def __init__(self, name, unit, A, S, n_s, layer_dimension):
         """
         Attention Model at time step t in Ty
         -----Parameter------
@@ -16,6 +16,7 @@ class attention_model():
         _c_t: context at time-step t in Ty
         """
         self._layer = None
+        self.name = name
         # checking if layer_dimension argument is a list or not
         if isinstance(layer_dimension, list):
             self._layer = layer_dimension

@@ -12,7 +12,7 @@ from sklearn.preprocessing import normalize
 
 
 class model:
-    def __init__(self, X, Y, S, Tx, Ty, n_a = 32, n_s = 64, jump_step = 100, epoch = 100):
+    def __init__(self, X, Y, S, Tx, Ty, n_a = 32, n_s = 64, jump_step = 100, epoch = 100, sec = 5):
         self.X = X
         self.Y = Y
         self.S = S
@@ -28,6 +28,8 @@ class model:
         self.layers = {}
         self.jump_step = jump_step
         self.epoch = epoch
+        self.layers_name_list = []
+        self.sec = sec
         # Wy shape = (n_s,n_y)
         self.Wy = func.xavier((self.n_s, self.n_y))
         self.by = np.zeros((1, self.n_y))
@@ -38,24 +40,24 @@ class model:
         print("epoch {}/{}".format(i,self.m))
         X = normalize(self.X[i,:,:], axis = 0)
 
-        pre_LSTM = LSTM((self.Tx, self.n_x), (self.Tx, self.n_a))
-        pre_bi_LSTM = Bidirectional(pre_LSTM, X)
+        pre_LSTM = LSTM("pre_LSTM", (self.Tx, self.n_x), (self.Tx, self.n_a))
+        pre_bi_LSTM = Bidirectional("pre_bi_LSTM", pre_LSTM)
 
-        self.layers["pre_bi_LSTM"] = pre_bi_LSTM
+        self.layers[pre_bi_LSTM.name] = pre_bi_LSTM
 
-        A = pre_bi_LSTM.concatLSTM() # shape = (Tx, 2 * n_a)
+        A = pre_bi_LSTM.concatLSTM(X) # shape = (Tx, 2 * n_a)
 
         # TODO: dropout A
         A = np.array(act.dropout(A, level=0.5)[0])
 
         # attention and post_LSTM
-        attention = attention_model(self.n_c, A, self.S, self.n_s, self.hidden_dimension)
+        attention = attention_model("attention", self.n_c, A, self.S, self.n_s, self.hidden_dimension)
 
-        self.layers["attention"] = attention
+        self.layers[attention.name] = attention
 
-        post_LSTM = LSTM((self.Ty, self.n_c), (self.Ty, self.n_s), is_attention = True, is_dropout = True)
+        post_LSTM = LSTM("post_LSTM", (self.Ty, self.n_c), (self.Ty, self.n_s), is_attention = True, is_dropout = True)
 
-        self.layers["post_LSTM"] = post_LSTM
+        self.layers[post_LSTM.name] = post_LSTM
 
         start = 0
         end = self.S
@@ -149,3 +151,44 @@ class model:
                 print("Total Lost: ", total_lost)
                 dWy, dby = self.backward_propagation_one_ex(Y_hat, Y_true, lstm_S, Att_As, Att_alphas, Att_caches)
                 self.update_weight(dWy, dby)
+
+    def predict(self, data, duration):
+        Ty = int(np.round(duration/sec))
+        # Tx, _ = data.shape
+        # assert(Tx >= self.S)
+        post_LSTM = self.layers["post_LSTM"]
+        attention = self.layers["attention"]
+        pre_bi_LSTM = self.layers["pre_bi_LSTM"]
+
+        A = pre_bi_LSTM.concatLSTM(data)
+
+        start = 0
+        end = self.S
+
+        prev_s = np.zeros((1, self.n_s))
+        prev_a = np.zeros((1, self.n_s))
+
+        lstm_S = []
+        print("Calulating LSTM_S......")
+        for t in progressbar.progressbar(range(Ty)):
+            alphas, c, _energies, _caches_t, current_A = attention.nn_forward_propagation(prev_s, start, end)
+            start = start + jump_step
+            end = end + jump_step
+
+            st, at, cache = post_LSTM.cell_forward(prev_s, prev_a, c)
+            lstm_S.append(st)
+            prev_s = st
+            prev_a = at
+
+        lstm_S = np.array(lstm_S)
+        # TODO: dropout lstm_S
+        # lstm_S = act.dropout(lstm_S, level = 0.5)
+        # initialize last layer Wy
+        # st shape = (1,n_s)
+        Y_hat = []
+        print("Predicting Y")
+        for st in progressbar.progressbar(lstm_S): # st shape = (1, n_s)
+            Zy = np.matmul(st, self.Wy) + self.by # shape = (1, n_y)
+            yt_hat = act.softmax(Zy)
+            print(yt_hat)
+            Y_hat.append(yt_hat.reshape(-1)) # yt_hat after reshape = (n_y,)
