@@ -159,10 +159,10 @@ class attention_model():
         for s in reversed(range(self.S)):
             alpha = np.atleast_2d(alphas[s])
             d_at_s, d_s_prev_s, d_ca_s, gradients = self.nn_cell_backward_propagation(dC, alpha, np.atleast_2d(_current_A[s]), _caches_t[s])
-            d_at = d_at_s + d_ca_s
-            assert(d_at.shape == (1, self.n_a))
+            d_as = d_at_s + d_ca_s
+            assert(d_as.shape == (1, self.n_a))
 
-            d_AS.append(d_at) # S -> 1
+            d_AS.append(d_as) # S -> 1
 
             d_s_prev = d_s_prev + d_s_prev_s
             gradients_t.append(gradients)
