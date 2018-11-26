@@ -209,10 +209,8 @@ class LSTM():
         """
         ----backpropagation for LSTM layer--
         Parameters:
-            Y_true: true label (Ty, n_y)
-            Y_hat: predicted label - result from model (Ty, n_y)
+            dA: gradient of hidden state (Tx, n_a) or (Ty, n_s)
             attention: attention layer object
-            Wy: weight of last layer (n_s, n_y)
             Att_As: Hidden state of pre_LSTM
             Att_caches: cache value of attention model
             Att_alphas: alphas of attention model
