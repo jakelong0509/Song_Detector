@@ -43,6 +43,7 @@ class Bidirectional():
         # initialize shape of dA --- dA.shape == A.shape
         dA = np.zeros((self.Tx, n_a))
 
+
         start = 0
         end = S
 
@@ -50,6 +51,8 @@ class Bidirectional():
             dA[start:end,:] = dA[start:end,:] + np.array(att_dA.reshape((S, n_a)))
             start = start + jump_step
             end = end + jump_step
+
+        assert(dA.shape == self.concat.shape)
 
         self.dA_forward = dA[:, :n_a]
         self.dA_backward = dA[:, n_a:]
