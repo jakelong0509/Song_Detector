@@ -106,6 +106,6 @@ if __name__ == "__main__":
 
 
     dL = -(1/Ty)
-    gradients = post_LSTM.lastlayer_backpropagation(dL, Y_true, Y_hat, Wy, Att_As, Att_caches, Att_alphas, attention)
+    dict = post_LSTM.lastlayer_backpropagation(dL, Y_true, Y_hat, Wy, Att_As, Att_caches, Att_alphas, attention)
     attention.update_layer(lr=0.005)
-    post_LSTM.update_weight(gradients, lr=0.005)
+    post_LSTM.update_weight(dict["gradients"], lr=0.005)

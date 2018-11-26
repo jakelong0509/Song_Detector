@@ -64,6 +64,8 @@ class attention_model():
     def nn_forward_propagation(self, prev_s, start, end):
         """
         prev_s: hidden state of post-LSTM from time step t-1 in Ty (1, n_s)
+        start: start index to slice self._A
+        end: end index to slice self._A
         """
         _current_A = self._A[start:end, :]
         # call duplicate function fron functions module to duplicate _prev_s from (1,n_s) to (S, n_s)
@@ -142,7 +144,11 @@ class attention_model():
 
     def nn_backward_propagation(self, dC, _alphas, _current_A, _caches_t):
         """
-
+        ---parameters----
+        dC: gradient of context (1, 2 * n_a)
+        _alphas: list of alpha of attention model at time step t, each alpha have shape = (1,1)
+        _current_A: list of hidden state of attention model at time step t (input) each hidden state have shape = (1, 2 * n_a)
+        _caches_t: list of cache of attention model at time step t
         """
         d_AS = []
         d_s_prev = np.zeros((1, self.n_s))
@@ -151,13 +157,17 @@ class attention_model():
         for s in reversed(range(self.S)):
             alpha = np.atleast_2d(alphas[s])
             d_at_s, d_s_prev_s, d_ca_s, gradients = self.nn_cell_backward_propagation(dC, alpha, np.atleast_2d(_current_A[s]), _caches_t[s])
-            d_AS.append(d_at_s + d_ca_s)
+            d_at = d_at_s + d_ca_s
+            assert(d_at.shape == (1, self.n_a))
+
+            d_AS.append(d_at) # S -> 1
+
             d_s_prev = d_s_prev + d_s_prev_s
             gradients_t.append(gradients)
-
+        d_AS = np.flip(d_AS, axis = 0) # flip 1 -> S
         return d_s_prev, d_AS, gradients_t
 
-
+    # a thread function used to calc batch grads
     def gradient_thread(self, gradient_fac, result, index):
         grads = {k: np.zeros_like(v) for k,v in gradient_fac[0].items()}
         for grad in gradient_fac:
@@ -169,6 +179,9 @@ class attention_model():
     def cell_update_gradient_t(self, gradients_t, thread_no):
         """
         gradients_t: a list of dictionary of gradient at time step t
+        thread_no: number of threads - scalar number
+        -----return----
+        None; append grads of each attention model to layer variable self.gradients
         """
         grads = {k: np.zeros_like(v) for k,v in gradients_t[0].items()}
         results = [None] * thread_no
@@ -195,7 +208,12 @@ class attention_model():
 
         self.gradients.append(grads)
 
+    # update layer gradient
     def update_gradient_layer(self):
+        """
+        ---return---
+        grads: gradients of the entire layer
+        """
         grads = {k: np.zeros_like(v) for k,v in self.gradients[0].items()}
         for grad in self.gradients:
             for k in grad.keys():
@@ -203,7 +221,11 @@ class attention_model():
 
         return grads
 
-    def update_layer(self, lr):
+    def update_layer(self, lr=0.001):
+        """
+        ----parameters-----
+        lr: learning rate
+        """
         grads = self.update_gradient_layer()
         for i in range(len(self._layer)):
             self._params["W"+str(i+1)] = self._params["W"+str(i+1)] - lr*grads["dW"+str(i+1)]
