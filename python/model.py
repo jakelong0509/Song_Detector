@@ -128,9 +128,9 @@ class model:
 
 
         #shape = (Ty, n_s)
-        dA = np.matmul(dZ, np.tranpose(self.Wy))
+        dS = np.matmul(dZ, np.tranpose(self.Wy))
 
-        dict = post_LSTM.backward_propagation(dA, Att_As, Att_caches, Att_alphas, attention)
+        dict = post_LSTM.backward_propagation(dS, Att_As, Att_caches, Att_alphas, attention)
         attention.update_layer(lr=0.005)
         post_LSTM.update_weight(dict["gradients"], lr=0.005)
         d_AS_list = dict["d_AS_list"]
