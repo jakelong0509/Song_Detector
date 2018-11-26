@@ -4,7 +4,7 @@ from threading import Thread
 from functions import helper_func as func, activations as act
 
 class attention_model():
-    def __init__(self, A, S, n_s, layer_dimension):
+    def __init__(self, unit, A, S, n_s, layer_dimension):
         """
         Attention Model at time step t in Ty
         -----Parameter------
@@ -27,6 +27,7 @@ class attention_model():
         self.n_a = self._A.shape[1] # n_a of concat => n_a_concat = 2 * n_a_normal
         self.n_s = n_s
         self.n_x = self.n_a + self.n_s
+        self.unit = unit
         self.gradients = []
         # initialize weight for model
         # input to neural have shape = (1, n_a + n_s)
@@ -91,7 +92,7 @@ class attention_model():
 
         # calculate context of time step t shape=(1,n_c) n_c = 2*n_a
         c = np.matmul(_alphas, _current_A)
-
+        assert(c.shape == (1, self.unit))
         return _alphas, c, _energies, _caches_t, _current_A
 
     def nn_cell_backward_propagation(self, dC, alpha, a_s, cache_t_s):

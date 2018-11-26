@@ -54,9 +54,12 @@ class Bidirectional():
         self.dA_forward = dA[:, :n_a]
         self.dA_backward = dA[:, n_a:]
 
-    def cell_backpropagation(self):
-        forward_gradients = self.forward.normal_backpropagation(self.dA_forward)
-        backward_gradients = self.backward.normal_backpropagation(self.dA_backward)
+    def cell_backpropagation(self, att_dA_list, jump_step, Ty):
+        
+        self.accumulate_dA(att_dA_list, jump_step, Ty)
+
+        forward_gradients = self.forward.backward_propagation(self.dA_forward)
+        backward_gradients = self.backward.backward_propagation(self.dA_backward)
 
         self.forward.update_weight(forward_gradients, lr = 0.005)
         self.backward.update_weight(forward_gradients, lr = 0.005)

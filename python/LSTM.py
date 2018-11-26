@@ -6,7 +6,7 @@ from wrapper import Bidirectional
 import progressbar
 
 class LSTM():
-    def __init__(self, input_dim, output_dim, is_attention = False, is_dropout = False, is_lastlayer = False):
+    def __init__(self, input_dim, output_dim, is_attention = False, is_dropout = False):
         """
         input_dim: dimension of input data (Tx, n_x)
         output_dim: dimension of output hidden state (Tx, n_a)
@@ -21,10 +21,9 @@ class LSTM():
         # a toggle used to decide LSTM_backward
         self.is_backward = False
         self.is_attention = is_attention
-        self.is_lastlayer = is_lastlayer
         self.is_dropout = is_dropout
         # retrieve dimension
-        _, self.n_x = self.input_dim
+        self.T, self.n_x = self.input_dim
         _, self.n_a = self.output_dim
 
         # initialize cell params
@@ -118,7 +117,7 @@ class LSTM():
         return np.array(self.A)
 
     # TODO: check dimension
-    def cell_backward(self, dZ, da_next, dc_next, cache_t, Wy, ds_c_next = None, da_t_calced = None):
+    def cell_backward(self, da_t, da_next, dc_next, cache_t, ds_c_next = None):
         """
         backpropagation of 1 cell of LSTM---
         ----Parameters----
@@ -136,12 +135,12 @@ class LSTM():
         gradients_t = {}
 
         # derivative of ds at current time-step
-        da_t = None
-        if da_t_calced == None:
-            da_t = np.matmul(dZ, np.transpose(Wy)) # shape = (1,n_a)
-        else:
-            da_t = da_t_calced
-
+        # da_t = None
+        # if da_t_calced == None:
+        #     da_t = np.matmul(dZ, np.transpose(Wy)) # shape = (1,n_a)
+        # else:
+        #     da_t = da_t_calced
+        assert(da_t.shape == (1, self.n_a))
 
         da = None
         if self.is_attention:
@@ -201,22 +200,15 @@ class LSTM():
 
         gradients_t = {"dWf": dWf, "dWu": dWu, "dWo": dWo, "dWctt": dWctt, "dbf": dbf, "dbu": dbu, "dbo": dfo, "dbctt": dbctt}
 
-        # derivative of Wy and by is last layer
-        if self.is_lastlayer:
-            dWy = np.matmul(np.transpose(at), dZ) # shape = (n_a, n_y)
-            dby = dZ
-            gradients_t["dWy"] = dWy
-            gradients_t["dby"] = dby
 
 
         return gradients_t, dX, da_prev, dc_prev
 
 
-    def lastlayer_backpropagation(self, dL, Y_true, Y_hat, Wy, Att_As = None, Att_caches = None, Att_alphas = None, attention = None):
+    def backward_propagation(self, dA, Att_As = None, Att_caches = None, Att_alphas = None, attention = None):
         """
         ----backpropagation for LSTM layer--
         Parameters:
-            dL: gradients of lost function at all time step (1/Ty)
             Y_true: true label (Ty, n_y)
             Y_hat: predicted label - result from model (Ty, n_y)
             attention: attention layer object
@@ -231,19 +223,20 @@ class LSTM():
         if not self.is_attention:
             assert(Att_As == None and Att_caches == None and Att_alphas == None and attention == None)
 
-        Ty, n_y = Y_true.shape
         # gradient of Z where Y_hat = g(Z) - softmax
-        # dZ shape = (Ty, n_y)
-        dZ = Y_hat - Y_true
         da_next_2 = np.zeros((1,self.n_a))
         dc_next = np.zeros((1,self.n_a))
-        ds_c_next = np.zeros((1,self.n_a))
+
+        ds_c_next = None
+        if self.is_attention:
+            ds_c_next = np.zeros((1,self.n_a))
+
         gradients = []
         d_AS_list = []
         dict = {}
         print("Calculating Gradient......")
-        for t in progressbar.progressbar(reversed(range(Ty))):
-            gradients_t, dX, da_prev, dc_prev = self.cell_backward(np.atleast_2d(dZ[t,:]), da_next_2, dc_next, self.caches[t], Wy, ds_c_next)
+        for t in progressbar.progressbar(reversed(range(self.T))):
+            gradients_t, dX, da_prev, dc_prev = self.cell_backward(np.atleast_2d(dA[t,:]), da_next_2, dc_next, self.caches[t], ds_c_next)
             da_next_2 = da_prev
             dc_next = dc_prev
             gradients.append(gradients_t)
@@ -261,17 +254,16 @@ class LSTM():
             dict["d_AS_list"] = np.flip(d_AS_list, axis=0) # flip 1->Ty
         return dict
 
-    def normal_backpropagation(self, dA):
-
-        Tx, n_a_normal = dA.shape
-        da_prev = np.zeros((1, n_a_normal))
-        dc_prev = np.zeros((1, n_a_normal))
-        gradients = []
-        for t in progressbar.progressbar(reversed(range(Tx))):
-            gradients_t, dX, da_prev, dc_prev = self.cell_backward(self, dZ, da_next, dc_next, cache_t, Wy, da_t_calced = dA[t].reshape((1, n_a_normal))):
-            gradients.append(gradients_t)
-
-        return gradients;
+    # def normal_backpropagation(self, dA):
+    #     da_prev = np.zeros((1, n_a_normal))
+    #     dc_prev = np.zeros((1, n_a_normal))
+    #     gradients = []
+    #     print("Calculating Gradient......")
+    #     for t in progressbar.progressbar(reversed(range(Tx))):
+    #         gradients_t, dX, da_prev, dc_prev = self.cell_backward(da_next, dc_next, cache_t, np.atleast_2d(dA[t,:]))
+    #         gradients.append(gradients_t)
+    #
+    #     return gradients;
 
     def update_gradient(self, gradients):
         """
@@ -306,9 +298,7 @@ class LSTM():
         self.params["Wu"] = self.params["Wu"] - lr*self.gradients["dWu"]
         self.params["bu"] = self.params["bu"] - lr*self.gradients["dbu"]
 
-        if self.is_lastlayer:
-            self.params["Wy"] = self.params["Wy"] - lr*self.gradients["dWy"]
-            self.params["by"] = self.params["by"] - lr*self.gradients["dby"]
+
 
 if __name__ == "__main__":
     input_dim = (10,10,3)
