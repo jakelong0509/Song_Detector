@@ -52,6 +52,7 @@ class model:
         ---parameter---
         i: index
         """
+        X = np.array(act.dropout(X, level = 0.25)[0])
         X = normalize(self.X[i,:,:], axis = 0)
         A = self.pre_bi_LSTM.concatLSTM(X) # shape = (Tx, 2 * n_a)
         # TODO: dropout A
