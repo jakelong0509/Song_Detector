@@ -71,13 +71,17 @@ class attention_model():
 
         return energy, caches_t_s
 
-    def nn_forward_propagation(self, prev_s, start, end):
+    def nn_forward_propagation(self, prev_s, start, end, data_to_predict = None):
         """
         prev_s: hidden state of post-LSTM from time step t-1 in Ty (1, n_s)
         start: start index to slice self._A
         end: end index to slice self._A
         """
-        _current_A = self._A[start:end, :]
+        _current_A = None
+        if data_to_predict == None:
+            _current_A = self._A[start:end, :]
+        else:
+            _current_A = data_to_predict[start:end, :]
         # call duplicate function fron functions module to duplicate _prev_s from (1,n_s) to (S, n_s)
         _prev_S = func.duplicate(self.S, self.n_s, prev_s, axis = 0)
 
@@ -157,6 +161,7 @@ class attention_model():
                 self.s_bias["db"+str(i)] = np.zeros_like(gradients["db"]+str(i))
                 self.v_weight["dW"+str(i)] = np.zeros_like(gradients["dW"]+str(i))
                 self.v_bias["db"+str(i)] = np.zeros_like(gradients["db"]+str(i))
+            self.first = False;
 
         d_input = np.matmul(d_Z_last, np.transpose(W)) # shape = (1, 2 * n_a + n_s)
         d_at_s = d_input[:, :self.n_a] # shape = (1, 2 * n_a)

@@ -148,15 +148,12 @@ class model:
                 self.backward_propagation_one_ex(Y_hat, Y_true, i, lr)
 
 
-    def predict(self, data, duration):
-        Ty = int(np.round(duration/sec))
-        # Tx, _ = data.shape
-        # assert(Tx >= self.S)
-        post_LSTM = self.layers["post_LSTM"]
-        attention = self.layers["attention"]
-        pre_bi_LSTM = self.layers["pre_bi_LSTM"]
+    def predict(self, data):
+        Tx, _ = data.shape
+        assert(Tx >= self.S)
+        Ty = song_preprocessing.get_Ty(Tx, self.S, self.jump_step)
 
-        A = pre_bi_LSTM.concatLSTM(data)
+        A = self.pre_bi_LSTM.concatLSTM(data)
 
         start = 0
         end = self.S
@@ -167,9 +164,9 @@ class model:
         lstm_S = []
         print("Calulating LSTM_S......")
         for t in progressbar.progressbar(range(Ty)):
-            alphas, c, _energies, _caches_t, current_A = attention.nn_forward_propagation(prev_s, start, end)
-            start = start + jump_step
-            end = end + jump_step
+            alphas, c, _energies, _caches_t, current_A = attention.nn_forward_propagation(prev_s, start, end, data_to_predict = A)
+            start = start + self.jump_step
+            end = end + self.jump_step
 
             st, at, cache = post_LSTM.cell_forward(prev_s, prev_a, c)
             lstm_S.append(st)
