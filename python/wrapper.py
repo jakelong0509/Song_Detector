@@ -39,30 +39,23 @@ class Bidirectional():
         # att_dA_list 1 -> Ty
         # take first dA of first list to get n_a
         n_a = att_dA_list[0][0].shape[1]
-
         # initialize shape of dA --- dA.shape == A.shape
         dA = np.zeros((self.Tx, n_a))
-
-
         start = 0
         end = S
-
         for att_dA in att_dA_list:
             dA[start:end,:] = dA[start:end,:] + np.array(att_dA.reshape((S, n_a)))
             start = start + jump_step
             end = end + jump_step
-
-        assert(dA.shape == self.concat.shape)
-
         self.dA_forward = dA[:, :n_a]
         self.dA_backward = dA[:, n_a:]
 
     def cell_backpropagation(self, att_dA_list, jump_step, Ty):
 
         self.accumulate_dA(att_dA_list, jump_step, Ty)
+        _ = self.forward.backward_propagation(self.dA_forward)
+        _ = self.backward.backward_propagation(self.dA_backward)
 
-        forward_gradients = self.forward.backward_propagation(self.dA_forward)
-        backward_gradients = self.backward.backward_propagation(self.dA_backward)
-
-        self.forward.update_weight(forward_gradients, lr = 0.005)
-        self.backward.update_weight(forward_gradients, lr = 0.005)
+    def update_weight(self, lr, i):
+        self.forward.update_weight(lr, i)
+        self.backward.update_weight(lr, i)

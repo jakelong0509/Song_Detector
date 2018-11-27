@@ -6,18 +6,20 @@ from wrapper import Bidirectional
 import progressbar
 
 class LSTM():
-    def __init__(self, name, input_dim, output_dim, is_attention = False, is_dropout = False):
+    def __init__(self, name, input_dim, output_dim, is_attention = False, is_dropout = False, optimizer = None):
         """
         input_dim: dimension of input data (Tx, n_x)
         output_dim: dimension of output hidden state (Tx, n_a)
         """
-
+        self.first = True
         self.input_dim = input_dim
         self.output_dim = output_dim
-        self.params = {}
+        self._params = {}
         self.caches = []
         self.gradients = None
+        self.gradients_list_t = []
         self.name = name
+        self.optimizer = optimizer
         # a toggle used to decide LSTM_backward
         self.is_backward = False
         self.is_attention = is_attention
@@ -31,32 +33,38 @@ class LSTM():
         _ke_cell_W = func.xavier((self.n_a, self.n_x)) # W.shape = (n_a, n_x)
         _cell_b = np.zeros((1,self.n_a))
         _cell_W = np.concatenate((_re_cell_W, _ke_cell_W), axis = 1) # shape = (n_a, na + n_x)
-        self.params["Wc"] = _cell_W
-        self.params["bc"] = _cell_b
+        self._params["Wc"] = _cell_W
+        self._params["bc"] = _cell_b
 
         # initialize update params
         _re_u_W = func.orthogonal(self.n_a)
         _ke_u_W = func.xavier((self.n_a, self.n_x))
         _u_b = np.zeros((1,self.n_a))
         _u_W = np.concatenate((_re_u_W, _ke_u_W), axis = 1) # shape = (n_a, na + n_x)
-        self.params["Wu"] = _u_W
-        self.params["bu"] = _u_b
+        self._params["Wu"] = _u_W
+        self._params["bu"] = _u_b
 
         # initialize forget params
         _re_f_W = func.orthogonal(self.n_a)
         _ke_f_W = func.xavier((self.n_a, self.n_x))
         _f_b = np.zeros((1,self.n_a))
         _f_W = np.concatenate((_re_f_W, _ke_f_W), axis = 1) # shape = (n_a, n_a + n_x)
-        self.params["Wf"] = _f_W
-        self.params["bf"] = _f_b
+        self._params["Wf"] = _f_W
+        self._params["bf"] = _f_b
 
         # initialize output params
         _re_o_W = func.orthogonal(self.n_a)
         _ke_o_W = func.xavier((self.n_a, self.n_x))
         _o_b = np.zeros((1, self.n_a))
         _o_W = np.concatenate((_re_o_W, _ke_o_W), axis = 1) # shape = (n_a, n_a + n_x)
-        self.params["Wo"] = _o_W
-        self.params["bo"] = _o_b
+        self._params["Wo"] = _o_W
+        self._params["bo"] = _o_b
+
+        # initialize v_prev and s_prev
+        self.v_weight = None
+        self.v_bias = None
+        self.s_weight = None
+        self.s_bias = None
 
     def cell_forward(self, a_prev, c_prev, xt):
         """
@@ -71,10 +79,10 @@ class LSTM():
             concat, d_ax_drop = act.dropout(concat, level = 0.5)
             c_prev, d_c_drop = act.dropout(c_prev, level = 0.5)
 
-        ctt = act.tanh(np.matmul(concat, np.transpose(self.params["Wc"])) + self.params["bc"])
-        fu = act.sigmoid(np.matmul(concat, np.transpose(self.params["Wu"])) + self.params["bu"])
-        ff = act.sigmoid(np.matmul(concat, np.transpose(self.params["Wf"])) + self.params["bf"])
-        fo = act.sigmoid(np.matmul(concat, np.transpose(self.params["Wo"])) + self.params["bo"])
+        ctt = act.tanh(np.matmul(concat, np.transpose(self._params["Wc"])) + self._params["bc"])
+        fu = act.sigmoid(np.matmul(concat, np.transpose(self._params["Wu"])) + self._params["bu"])
+        ff = act.sigmoid(np.matmul(concat, np.transpose(self._params["Wf"])) + self._params["bf"])
+        fo = act.sigmoid(np.matmul(concat, np.transpose(self._params["Wo"])) + self._params["bo"])
         ct = np.multiply(fu, ctt) + np.multiply(ff, c_prev)
         at = np.multiply(fo, act.tanh(ct)) # shape = (1,n_a)
 
@@ -194,13 +202,21 @@ class LSTM():
         # da_prev shape = (1,n_a)
         # dc_prev shape = (1,n_a)
         # dX shape = (1,n_x)
-        da_prev = (np.matmul(dff, self.params["Wf"][:, :self.n_a]) + np.matmul(dfu, self.params["Wu"][:, :self.n_a]) + np.matmul(dctt, self.params["Wc"][:, :self.n_a]) + np.matmul(dfo, self.params["Wo"][:, :self.n_a])) * d_ax_drop[:, :self.n_a]
-        dX = (np.matmul(dff, self.params["Wf"][:, self.n_a:]) + np.matmul(dfu, self.params["Wu"][:, self.n_a:]) + np.matmul(dctt, self.params["Wc"][:, self.n_a:]) + np.matmul(dfo, self.params["Wo"][:, self.n_a:])) * d_ax_drop[:, self.n_a:]
+        da_prev = (np.matmul(dff, self._params["Wf"][:, :self.n_a]) + np.matmul(dfu, self._params["Wu"][:, :self.n_a]) + np.matmul(dctt, self._params["Wc"][:, :self.n_a]) + np.matmul(dfo, self._params["Wo"][:, :self.n_a])) * d_ax_drop[:, :self.n_a]
+        dX = (np.matmul(dff, self._params["Wf"][:, self.n_a:]) + np.matmul(dfu, self._params["Wu"][:, self.n_a:]) + np.matmul(dctt, self._params["Wc"][:, self.n_a:]) + np.matmul(dfo, self._params["Wo"][:, self.n_a:])) * d_ax_drop[:, self.n_a:]
         dc_prev = (dc * ff) * d_c_drop
 
         gradients_t = {"dWf": dWf, "dWu": dWu, "dWo": dWo, "dWctt": dWctt, "dbf": dbf, "dbu": dbu, "dbo": dfo, "dbctt": dbctt}
 
-
+        if self.optimizer == "Adam" and self.first:
+            # initialize v_prev and s_prev
+            gradients_t_weights = {"dWf": dWf, "dWu": dWu, "dWo": dWo, "dWctt": dWctt}
+            gradients_t_bias = {"dbf": dbf, "dbu": dbu, "dbo": dfo, "dbctt": dbctt}
+            self.v_weight = {k: np.zeros_like(v) for k,v in gradients_t_weights.items()}
+            self.v_bias = {k: np.zeros_like(v) for k,v in gradients_t_bias.items()}
+            self.s_weight = {k: np.zeros_like(v) for k,v in gradients_t_weights.items()}
+            self.s_bias = {k: np.zeros_like(v) for k,v in gradients_t_bias.items()}
+            self.first = False
 
         return gradients_t, dX, da_prev, dc_prev
 
@@ -229,15 +245,14 @@ class LSTM():
         if self.is_attention:
             ds_c_next = np.zeros((1,self.n_a))
 
-        gradients = []
+
         d_AS_list = []
-        dict = {}
         print("Calculating Gradient......")
         for t in progressbar.progressbar(reversed(range(self.T))):
             gradients_t, dX, da_prev, dc_prev = self.cell_backward(np.atleast_2d(dA[t,:]), da_next_2, dc_next, self.caches[t], ds_c_next)
             da_next_2 = da_prev
             dc_next = dc_prev
-            gradients.append(gradients_t)
+            self.gradients_list_t.append(gradients_t)
             if self.is_attention:
                 # TODO: attention model cell_backpropagation to calc ds_c_prev [ds_c_next = ds_c_prev]
                 ds_c_next, d_AS, att_gradients_t = attention.nn_backward_propagation(dX, Att_alphas[t], Att_As[t], Att_caches[t])
@@ -247,10 +262,11 @@ class LSTM():
 
                 # append list d_AS to list d_AS_list
                 d_AS_list.append(d_AS) # Ty -> 1
-        dict["gradients"] = gradients
+
         if self.is_attention:
-            dict["d_AS_list"] = np.flip(d_AS_list, axis=0) # flip 1->Ty
-        return dict
+            d_AS_list = np.flip(d_AS_list, axis=0) # flip 1->Ty
+
+        return d_AS_list
 
     # def normal_backpropagation(self, dA):
     #     da_prev = np.zeros((1, n_a_normal))
@@ -263,39 +279,73 @@ class LSTM():
     #
     #     return gradients;
 
-    def update_gradient(self, gradients):
+    def update_gradient(self):
         """
         ----parameters-----
         gradients: a list of gradient dictionary at time step t in Ty
         """
-        grads = {k: np.zeros_like(v) for k,v in gradients[0].items()}
-        for grad in gradients:
+        grads = {k: np.zeros_like(v) for k,v in self.gradients_list_t[0].items()}
+        for grad in self.gradients_list_t:
             for k in grad.keys():
                 grads[k] = grads[k] + grad[k]
 
         self.gradients = grads
 
-    def update_weight(self, gradients, lr):
+    def update_weight(self, lr, i, beta1 = 0.9, beta2 = 0.999, eps = 1e-8):
 
         # run update_gradient to update self.gradients
-        self.update_gradient(gradients)
+        self.update_gradient()
 
-        # update weight and bias of ctt gate
-        self.params["Wc"] = self.params["Wc"] - lr*self.gradients["dWctt"]
-        self.params["bc"] = self.params["bc"] - lr*self.gradients["dbctt"]
+        if self.optimizer == "Adam":
+            s_corrected = {}
+            v_corrected = {}
 
-        # update weight and bias of f gate
-        self.params["Wf"] = self.params["Wf"] - lr*self.gradients["dWf"]
-        self.params["bf"] = self.params["bf"] - lr*self.gradients["dbf"]
+            for k in self.s_weight.keys():
+                self.s_weight[k] = beta2 * self.s_weight[k] + (1 - beta2) * (self.gradients[k] ** 2)
+                s_corrected[k] = self.s_weight[k] / (1-beta2**i)
+            for k in self.s_bias.keys():
+                self.s_bias[k] = beta2 * self.s_bias[k] + (1 - beta2) * self.gradients[k]
+                s_corrected[k] = self.s_bias[k] / (1 - beta2**i)
+            for k in self.v_weight.keys():
+                self.v_weight[k] = beta1 * self.v_weight[k] + (1 - beta1) * self.gradients[k]
+                v_corrected[k] = self.v_weight[k] / (1 - beta1**i)
+            for k in self.v_bias.keys():
+                self.v_bias[k] = beta1 * self.v_bias[k] + (1 - beta1) * self.gradients[k]
+                v_corrected[k] = self.v_weight[k] / (1 - beta1**i)
 
-        # update weight and bias of o gate
-        self.params["Wo"] = self.params["Wo"] - lr*self.gradients["dWo"]
-        self.params["bo"] = self.params["bo"] - lr*self.gradients["dbo"]
+            # update weight and bias of ctt gate
+            self._params["Wc"] = self._params["Wc"] - lr*(v_corrected["dWctt"] / (np.sqrt(s_corrected["dWctt"]) + eps))
+            self._params["bc"] = self._params["bc"] - lr*(v_corrected["dbctt"] / (np.sqrt(s_corrected["dbctt"]) + eps))
 
-        # update weight and bias of u gate
-        self.params["Wu"] = self.params["Wu"] - lr*self.gradients["dWu"]
-        self.params["bu"] = self.params["bu"] - lr*self.gradients["dbu"]
+            # update weight and bias of f gate
+            self._params["Wf"] = self._params["Wf"] - lr*(v_corrected["dWf"] / (np.sqrt(s_corrected["dWf"]) + eps))
+            self._params["bf"] = self._params["bf"] - lr*(v_corrected["dbf"] / (np.sqrt(s_corrected["dbf"]) + eps))
 
+            # update weight and bias of o gate
+            self._params["Wo"] = self._params["Wo"] - lr*(v_corrected["dWo"] / (np.sqrt(s_corrected["dWo"]) + eps))
+            self._params["bo"] = self._params["bo"] - lr*(v_corrected["dbo"] / (np.sqrt(s_corrected["dbo"]) + eps))
+
+            # update weight and bias of u gate
+            self._params["Wu"] = self._params["Wu"] - lr*(v_corrected["dWu"] / (np.sqrt(s_corrected["dWu"]) + eps))
+            self._params["bu"] = self._params["bu"] - lr*(v_corrected["dbu"] / (np.sqrt(s_corrected["dbu"]) + eps))
+
+        else:
+
+            # update weight and bias of ctt gate
+            self._params["Wc"] = self._params["Wc"] - lr*self.gradients["dWc"]
+            self._params["bc"] = self._params["bc"] - lr*self.gradients["dbc"]
+
+            # update weight and bias of f gate
+            self._params["Wf"] = self._params["Wf"] - lr*self.gradients["dWf"]
+            self._params["bf"] = self._params["bf"] - lr*self.gradients["dbf"]
+
+            # update weight and bias of o gate
+            self._params["Wo"] = self._params["Wo"] - lr*self.gradients["dWo"]
+            self._params["bo"] = self._params["bo"] - lr*self.gradients["dbo"]
+
+            # update weight and bias of u gate
+            self._params["Wu"] = self._params["Wu"] - lr*self.gradients["dWu"]
+            self._params["bu"] = self._params["bu"] - lr*self.gradients["dbu"]
 
 
 if __name__ == "__main__":

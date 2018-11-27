@@ -4,7 +4,7 @@ from threading import Thread
 from functions import helper_func as func, activations as act
 
 class attention_model():
-    def __init__(self, name, unit, A, S, n_s, layer_dimension):
+    def __init__(self, name, unit, S, n_s, layer_dimension, optimizer = None):
         """
         Attention Model at time step t in Ty
         -----Parameter------
@@ -23,13 +23,16 @@ class attention_model():
         else:
             sys.exit("The argument of layer_dimension is not a list. Terminating operation...")
 
-        self._A = A
+        self._A = None
         self.S = S
         self.n_a = self._A.shape[1] # n_a of concat => n_a_concat = 2 * n_a_normal
         self.n_s = n_s
         self.n_x = self.n_a + self.n_s
         self.unit = unit
-        self.gradients = []
+        self.gradients_t = []
+        self.gradients_layer = None
+        self.optimizer = optimizer
+        self.first = True
         # initialize weight for model
         # input to neural have shape = (1, n_a + n_s)
         self._params = {}
@@ -41,6 +44,11 @@ class attention_model():
         # initialize weight for last layer
         self._params["We"] = func.xavier((self._layer[len(self._layer)-1], 1))
         self._params["be"] = np.zeros((1,1))
+
+        self.s_weight = {}
+        self.s_bias = {}
+        self.v_weight = {}
+        self.v_bias = {}
 
     def nn_cell_forward(self, curr_input):
         # hidden layer
@@ -138,6 +146,18 @@ class attention_model():
                 W = self._params["W"+str(count)]
                 d_Z_last = dZ
                 count = count - 1
+
+        if self.optimizer == "Adam" and self.first:
+            self.s_weight["dWe"] = np.zeros_like(gradients["dWe"])
+            self.s_bias["dbe"] = np.zeros_like(gradients["dbe"])
+            self.v_weight["dWe"] = np.zeros_like(gradients["dWe"])
+            self.v_bias["dbe"] = np.zeros_like(gradients["dbe"])
+            for i in range(len(self._layer)):
+                self.s_weight["dW"+str(i)] = np.zeros_like(gradients["dW"]+str(i))
+                self.s_bias["db"+str(i)] = np.zeros_like(gradients["db"]+str(i))
+                self.v_weight["dW"+str(i)] = np.zeros_like(gradients["dW"]+str(i))
+                self.v_bias["db"+str(i)] = np.zeros_like(gradients["db"]+str(i))
+
         d_input = np.matmul(d_Z_last, np.transpose(W)) # shape = (1, 2 * n_a + n_s)
         d_at_s = d_input[:, :self.n_a] # shape = (1, 2 * n_a)
         d_s_prev_s = d_input[:, self.n_a:] # shape = (1, n_s)
@@ -183,7 +203,7 @@ class attention_model():
         gradients_t: a list of dictionary of gradient at time step t
         thread_no: number of threads - scalar number
         -----return----
-        None; append grads of each attention model to layer variable self.gradients
+        None; append grads of each attention model to layer variable self.gradients_t
         """
         grads = {k: np.zeros_like(v) for k,v in gradients_t[0].items()}
         results = [None] * thread_no
@@ -208,30 +228,54 @@ class attention_model():
             for i in range(len(threads)):
                 grads[k] = grads[k] + results[i][k]
 
-        self.gradients.append(grads)
+        self.gradients_t.append(grads)
 
     # update layer gradient
-    def update_gradient_layer(self):
+    def update_gradient(self):
         """
         ---return---
         grads: gradients of the entire layer
         """
-        grads = {k: np.zeros_like(v) for k,v in self.gradients[0].items()}
-        for grad in self.gradients:
+        grads = {k: np.zeros_like(v) for k,v in self.gradients_t[0].items()}
+        for grad in self.gradients_t:
             for k in grad.keys():
                 grads[k] = grads[k] + grad[k]
 
-        return grads
+        self.gradients_layer = grads
 
-    def update_layer(self, lr=0.001):
+    def update_weight(self, lr, i, beta1 = 0.9, beta2 = 0.999, eps = 1e-8):
         """
         ----parameters-----
         lr: learning rate
         """
-        grads = self.update_gradient_layer()
-        for i in range(len(self._layer)):
-            self._params["W"+str(i+1)] = self._params["W"+str(i+1)] - lr*grads["dW"+str(i+1)]
-            self._params["b"+str(i+1)] = self._params["b"+str(i+1)] - lr*grads["db"+str(i+1)]
+        self.update_gradient()
+        if self.optimizer == "Adam":
+            s_corrected = {}
+            v_corrected = {}
 
-        self._params["We"] = self._params["We"] - lr*grads["dWe"]
-        self._params["be"] = self._params["be"] - lr*grads["dbe"]
+            for k in self.s_weight.keys():
+                self.s_weight[k] = beta2 * self.s_weight[k] + (1 - beta2) * (self.gradients_layer[k] ** 2)
+                s_corrected[k] = self.s_weight[k] / (1-beta2**i)
+            for k in self.s_bias.keys():
+                self.s_bias[k] = beta2 * self.s_bias[k] + (1 - beta2) * self.gradients_layer[k]
+                s_corrected[k] = self.s_bias[k] / (1 - beta2**i)
+            for k in self.v_weight.keys():
+                self.v_weight[k] = beta1 * self.v_weight[k] + (1 - beta1) * self.gradients_layer[k]
+                v_corrected[k] = self.v_weight[k] / (1 - beta1**i)
+            for k in self.v_bias.keys():
+                self.v_bias[k] = beta1 * self.v_bias[k] + (1 - beta1) * self.gradients_layer[k]
+                v_corrected[k] = self.v_weight[k] / (1 - beta1**i)
+
+            for i in range(len(self._layer)):
+                self._params["W"+str(i+1)] = self._params["W"+str(i+1)] - lr*(v_corrected["dW"+str(i)] / (np.sqrt(s_corrected["dW"+str(i)]) + eps))
+                self._params["b"+str(i+1)] = self._params["b"+str(i+1)] - lr*(v_corrected["db"+str(i)] / (np.sqrt(s_corrected["db"+str(i)]) + eps))
+
+            self._params["We"] = self._params["We"] - lr*(v_corrected["dWe"]/(np.sqrt(s_corrected["dWe"]) + eps))
+            self._params["be"] = self._params["be"] - lr*(v_corrected["dbe"]/(np.sqrt(s_corrected["dbe"]) + eps))
+        else:
+            for i in range(len(self._layer)):
+                self._params["W"+str(i+1)] = self._params["W"+str(i+1)] - lr*self.gradients_layer["dW"+str(i+1)]
+                self._params["b"+str(i+1)] = self._params["b"+str(i+1)] - lr*self.gradients_layer["db"+str(i+1)]
+
+            self._params["We"] = self._params["We"] - lr*self.gradients_layer["dWe"]
+            self._params["be"] = self._params["be"] - lr*self.gradients_layer["dbe"]
