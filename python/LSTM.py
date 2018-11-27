@@ -186,10 +186,10 @@ class LSTM():
         assert(dWu.shape == (self.n_a, self.n_a + self.n_x))
 
         dWo = np.matmul(np.transpose(dfo), concat)
-        assert(dWo.shape == (self.n_a, self.n_a + self.n_x)))
+        assert(dWo.shape == (self.n_a, self.n_a + self.n_x))
 
         dWctt = np.matmul(np.transpose(dctt), concat)
-        assert(dWctt.shape == (self.n_a, self.n_a + self.n_x)))
+        assert(dWctt.shape == (self.n_a, self.n_a + self.n_x))
 
         # gate gradients bias
         # shape = (1, n_a)

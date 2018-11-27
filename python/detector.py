@@ -32,6 +32,10 @@ if __name__ == "__main__":
 
     # preprocessing data X.shape = (m, Tx, n_x) | Y.shape = (m, Ty, n_y)
     X, Y = song_preprocessing.preprocessing_data(songs_dir + "/", Tx, Ty)
-
-    model = (X, Y, S, Tx, Ty, lr = 0.1, n_a = 32, n_s = 64, jump_step = jump_step, epoch = 100, sec = sec, optimizer="Adam")
-    model.train()
+    print(X.shape)
+    for x in reversed(X):
+        for t in reversed(range(Tx)):
+            print(t)
+            print(x[t])
+    # model = (X, Y, S, Tx, Ty, lr = 0.1, n_a = 32, n_s = 64, jump_step = jump_step, epoch = 100, sec = sec, optimizer="Adam")
+    # model.train()
