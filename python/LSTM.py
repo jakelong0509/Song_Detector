@@ -347,6 +347,13 @@ class LSTM():
             self._params["Wu"] = self._params["Wu"] - lr*self.gradients["dWu"]
             self._params["bu"] = self._params["bu"] - lr*self.gradients["dbu"]
 
+        self.reset_gradients()
+
+    def reset_gradients(self):
+        self.caches = []
+        self.gradients = None
+        self.gradients_list_t = []
+
 
 if __name__ == "__main__":
     input_dim = (10,10,3)

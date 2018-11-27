@@ -284,3 +284,9 @@ class attention_model():
 
             self._params["We"] = self._params["We"] - lr*self.gradients_layer["dWe"]
             self._params["be"] = self._params["be"] - lr*self.gradients_layer["dbe"]
+
+        self.reset_gradients()
+
+    def reset_gradients(self):
+        self.gradients_t = []
+        self.gradients_layer = None
