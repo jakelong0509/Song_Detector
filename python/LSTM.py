@@ -86,8 +86,13 @@ class LSTM():
         ct = np.multiply(fu, ctt) + np.multiply(ff, c_prev)
         at = np.multiply(fo, act.tanh(ct)) # shape = (1,n_a)
 
+
         cache = (concat, ctt, fu, ff, fo, ct, at, a_prev, c_prev, d_ax_drop, d_c_drop)
         self.caches.append(cache)
+
+        del ctt, fu, ff, fo, concat, d_ax_drop, d_c_drop
+
+
         return at, ct, cache
 
     def forward_propagation(self, X):
@@ -120,7 +125,7 @@ class LSTM():
 
             c_prev = ct
             self.A.append(at.reshape(-1))
-
+            del cache, at, ct
 
         return np.array(self.A)
 
@@ -220,6 +225,9 @@ class LSTM():
             self.s_bias = {k: np.zeros_like(v) for k,v in gradients_t_bias.items()}
             self.first = False
 
+        del da, dfo, dc, dff, dfu, dctt
+
+
         return gradients_t, dX, da_prev, dc_prev
 
 
@@ -247,26 +255,44 @@ class LSTM():
         if self.is_attention:
             ds_c_next = np.zeros((1,self.n_a))
 
-
+        first = True
+        grads = None
         d_AS_list = []
         print("Calculating Gradient......")
         for t in progressbar.progressbar(reversed(range(self.T))):
             gradients_t, dX, da_prev, dc_prev = self.cell_backward(np.atleast_2d(dA[t,:]), da_next_2, dc_next, self.caches[t], ds_c_next)
             da_next_2 = da_prev
             dc_next = dc_prev
-            self.gradients_list_t.append(gradients_t)
+
+            if first:
+                grads = gradients_t
+                first = False
+            else:
+                for k in grads.keys():
+                    grads[k] = grads[k] + gradients_t[k]
+
+            # # *** this append step take alot of RAM *****
+            # self.gradients_list_t.append(gradients_t)
             if self.is_attention:
                 # TODO: attention model cell_backpropagation to calc ds_c_prev [ds_c_next = ds_c_prev]
                 ds_c_next, d_AS, att_gradients_t = attention.nn_backward_propagation(dX, Att_alphas[t], Att_As[t], Att_caches[t])
 
                 # run multithreading to calc attention model grads at time step t
-                attention.cell_update_gradient_t(att_gradients_t, 8)
+                # attention.cell_update_gradient_t(att_gradients_t, 8)
 
                 # append list d_AS to list d_AS_list
                 d_AS_list.append(d_AS) # Ty -> 1
 
+                # delete d_AS, att_gradients_t variables when already being append to d_AS_list
+                del d_AS, att_gradients_t
+
+            # delete gradients_t, dX, da_prev, dc_prev variable when not use anymore
+            del gradients_t, dX, da_prev, dc_prev
         if self.is_attention:
             d_AS_list = np.flip(d_AS_list, axis=0) # flip 1->Ty
+        self.gradients = grads
+        # reset caches when not use anymore
+        self.caches = []
 
         return d_AS_list
 
@@ -296,7 +322,7 @@ class LSTM():
     def update_weight(self, lr, i, beta1 = 0.9, beta2 = 0.999, eps = 1e-8):
 
         # run update_gradient to update self.gradients
-        self.update_gradient()
+        # self.update_gradient()
         i = i + 1
         if self.optimizer == "Adam":
             s_corrected = {}

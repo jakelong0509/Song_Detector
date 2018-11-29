@@ -73,7 +73,7 @@ class model:
             alphas, c, _energies, _caches_t, current_A = self.attention.nn_forward_propagation(prev_s, start, end)
             start = start + self.jump_step
             end = end + self.jump_step
-            # for backpropagation use
+            # for backpropagation use ***** this step take 30% of RAM in total *******
             self.Att_As.append(current_A)
             self.Att_caches.append(_caches_t)
             self.Att_alphas.append(alphas)
@@ -83,11 +83,13 @@ class model:
             prev_s = st
             prev_a = at
 
+            del alphas, c, _energies, _caches_t, current_A, st, at, cache
         # convert lstm_S(list) to lstm_S(np array)
         lstm_S = np.array(lstm_S).reshape((self.Ty, self.n_s))
         lstm_S = act.dropout(lstm_S, level=0.8)[0]
         lstm_S = normalize(lstm_S, axis = 0)
         self.last_layer_hidden_state = lstm_S
+        del lstm_S
         # TODO: dropout lstm_S
         # lstm_S = act.dropout(lstm_S, level = 0.5)
         # initialize last layer Wy
@@ -95,10 +97,10 @@ class model:
         Y_hat = []
         print("Predicting Y")
         for t in progressbar.progressbar(range(self.Ty)): # st shape = (1, n_s)
-            Zy = np.matmul(np.atleast_2d(lstm_S[t,:]), self.Wy) + self.by # shape = (1, n_y)
+            Zy = np.matmul(np.atleast_2d(self.last_layer_hidden_state[t,:]), self.Wy) + self.by # shape = (1, n_y)
             yt_hat = act.softmax(Zy)
             Y_hat.append(yt_hat.reshape(-1)) # yt_hat after reshape = (n_y,)
-
+            del Zy, yt_hat
         # Y_hat shape = (Ty, n_y)
         Y_true = np.array(self.Y[i,:,:]) # (Ty, n_y)
         Y_hat = np.array(Y_hat)
@@ -109,7 +111,7 @@ class model:
             total_lost = total_lost + lost
 
         total_lost = -(total_lost/self.Ty)
-        
+
         return total_lost, Y_hat, Y_true
 
     def backward_propagation_one_ex(self, Y_hat, Y_true, i, lr):
@@ -137,8 +139,13 @@ class model:
         self.post_LSTM.update_weight(lr, i)
         self.attention.update_weight(lr, i)
 
-        # self.pre_bi_LSTM.cell_backpropagation(d_AS_list, self.jump_step, self.Ty, self.Tx)
-        # self.pre_bi_LSTM.update_weight(lr, i)
+        self.Att_As = []
+        self.Att_caches = []
+        self.Att_alphas = []
+
+        
+        self.pre_bi_LSTM.cell_backpropagation(d_AS_list, self.jump_step, self.Ty, self.Tx)
+        self.pre_bi_LSTM.update_weight(lr, i)
 
 
     def update_weight(self, dWy, dby, lr=0.005):

@@ -62,13 +62,14 @@ class attention_model():
             cache = (input, Z, e)
             caches_t_s.append(cache)
             input = e
-
+            del Z, cache, e
         # last layer
         Z_last = np.matmul(input, self._params["We"]) + self._params["be"]
         energy = act.relu(Z_last)
         cache_last = (input, Z_last, energy)
         caches_t_s.append(cache_last)
 
+        del input, Z_last, cache_last
         return energy, caches_t_s
 
     def nn_forward_propagation(self, prev_s, start, end, data_to_predict = None):
@@ -97,6 +98,7 @@ class attention_model():
             energy, caches_t_s = self.nn_cell_forward(_SA_concat[s,:].reshape((1, self.n_a + self.n_s)))
             _caches_t.append(caches_t_s)
             _energies.append(energy)
+            del energy, caches_t_s
 
         # calculate alpha
         # alphas shape = (1,S)
@@ -106,6 +108,7 @@ class attention_model():
         # calculate context of time step t shape=(1,n_c) n_c = 2*n_a
         c = np.matmul(_alphas, _current_A)
         assert(c.shape == (1, self.unit))
+        del _prev_S, _SA_concat
         return _alphas, c, _energies, _caches_t, _current_A
 
     def nn_cell_backward_propagation(self, dC, alpha, a_s, cache_t_s):
@@ -180,7 +183,8 @@ class attention_model():
         d_AS = []
         d_s_prev = np.zeros((1, self.n_s))
         alphas = _alphas.reshape(-1)
-        gradients_t = []
+        first = True
+        gradients_t = None
         for s in reversed(range(self.S)):
             alpha = np.atleast_2d(alphas[s])
             d_at_s, d_s_prev_s, d_ca_s, gradients = self.nn_cell_backward_propagation(dC, alpha, np.atleast_2d(_current_A[s]), _caches_t[s])
@@ -190,8 +194,18 @@ class attention_model():
             d_AS.append(d_as) # S -> 1
 
             d_s_prev = d_s_prev + d_s_prev_s
-            gradients_t.append(gradients)
+            # gradients_t.append(gradients)
+            # adding gradient of 1 model in layer of models
+            if first:
+                gradients_t = gradients
+                first = False
+            else:
+                for k in gradients_t.keys():
+                    gradients_t[k] = gradients_t[k] + gradients[k]
+
         d_AS = np.flip(d_AS, axis = 0) # flip 1 -> S
+        self.gradients_t.append(gradients_t)
+        # gradients_t returned as a dictionary
         return d_s_prev, d_AS, gradients_t
 
     # a thread function used to calc batch grads

@@ -58,7 +58,7 @@ class Bidirectional():
         self.accumulate_dA(att_dA_list, jump_step, Ty, Tx)
         _ = self.forward.backward_propagation(self.dA_forward)
         _ = self.backward.backward_propagation(self.dA_backward)
-
+        del _
     def update_weight(self, lr, i):
         self.forward.update_weight(lr, i)
         self.backward.update_weight(lr, i)
