@@ -13,7 +13,7 @@ class Bidirectional():
 
         self.dA_forward = None
         self.dA_backward = None
-        self.Tx, self.n_x = X.shape
+
         self.concat = None
     def bi_forward(self, X):
         """
@@ -35,24 +35,27 @@ class Bidirectional():
         self.concat = np.concatenate((A_forward, A_backward), axis = 1) # shape = (Tx, 2*n_a)
         return self.concat
 
-    def accumulate_dA(self, att_dA_list, jump_step, Ty):
+    def accumulate_dA(self, att_dA_list, jump_step, Ty, Tx):
         # att_dA_list 1 -> Ty
         # take first dA of first list to get n_a
         n_a = att_dA_list[0][0].shape[1]
+        print(n_a)
+        S = len(att_dA_list[0])
+        print(S)
         # initialize shape of dA --- dA.shape == A.shape
-        dA = np.zeros((self.Tx, n_a))
+        dA = np.zeros((Tx, n_a))
         start = 0
         end = S
         for att_dA in att_dA_list:
             dA[start:end,:] = dA[start:end,:] + np.array(att_dA.reshape((S, n_a)))
             start = start + jump_step
             end = end + jump_step
-        self.dA_forward = dA[:, :n_a]
-        self.dA_backward = dA[:, n_a:]
+        self.dA_forward = dA[:, :int(n_a/2)]
+        self.dA_backward = dA[:, int(n_a/2):]
 
-    def cell_backpropagation(self, att_dA_list, jump_step, Ty):
+    def cell_backpropagation(self, att_dA_list, jump_step, Ty, Tx):
 
-        self.accumulate_dA(att_dA_list, jump_step, Ty)
+        self.accumulate_dA(att_dA_list, jump_step, Ty, Tx)
         _ = self.forward.backward_propagation(self.dA_forward)
         _ = self.backward.backward_propagation(self.dA_backward)
 

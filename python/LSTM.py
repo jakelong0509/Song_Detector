@@ -74,7 +74,7 @@ class LSTM():
         """
         concat = np.concatenate((a_prev, xt), axis = 1) # shape = (1, n_a + n_x)
         d_ax_drop = np.ones(concat.shape)
-        d_c_drop = np.ones(concat.shape)
+        d_c_drop = np.ones((1, self.n_a))
         if self.is_dropout:
             concat, d_ax_drop = act.dropout(concat, level = 0.5)
             c_prev, d_c_drop = act.dropout(c_prev, level = 0.5)
@@ -161,6 +161,7 @@ class LSTM():
         # shape = (1,n_a)
         dfo = da * act.tanh(ct) * act.backward_sigmoid(fo)
         assert(dfo.shape == (1, self.n_a))
+
         # derivative of c
         # shape = (1,n_a)
         dc = (da * act.backward_tanh(ct) * fo) + dc_next
@@ -202,6 +203,7 @@ class LSTM():
         # da_prev shape = (1,n_a)
         # dc_prev shape = (1,n_a)
         # dX shape = (1,n_x)
+
         da_prev = (np.matmul(dff, self._params["Wf"][:, :self.n_a]) + np.matmul(dfu, self._params["Wu"][:, :self.n_a]) + np.matmul(dctt, self._params["Wc"][:, :self.n_a]) + np.matmul(dfo, self._params["Wo"][:, :self.n_a])) * d_ax_drop[:, :self.n_a]
         dX = (np.matmul(dff, self._params["Wf"][:, self.n_a:]) + np.matmul(dfu, self._params["Wu"][:, self.n_a:]) + np.matmul(dctt, self._params["Wc"][:, self.n_a:]) + np.matmul(dfo, self._params["Wo"][:, self.n_a:])) * d_ax_drop[:, self.n_a:]
         dc_prev = (dc * ff) * d_c_drop
@@ -295,7 +297,7 @@ class LSTM():
 
         # run update_gradient to update self.gradients
         self.update_gradient()
-
+        i = i + 1
         if self.optimizer == "Adam":
             s_corrected = {}
             v_corrected = {}
@@ -304,14 +306,14 @@ class LSTM():
                 self.s_weight[k] = beta2 * self.s_weight[k] + (1 - beta2) * (self.gradients[k] ** 2)
                 s_corrected[k] = self.s_weight[k] / (1-beta2**i)
             for k in self.s_bias.keys():
-                self.s_bias[k] = beta2 * self.s_bias[k] + (1 - beta2) * self.gradients[k]
+                self.s_bias[k] = beta2 * self.s_bias[k] + (1 - beta2) * (self.gradients[k] ** 2)
                 s_corrected[k] = self.s_bias[k] / (1 - beta2**i)
             for k in self.v_weight.keys():
                 self.v_weight[k] = beta1 * self.v_weight[k] + (1 - beta1) * self.gradients[k]
                 v_corrected[k] = self.v_weight[k] / (1 - beta1**i)
             for k in self.v_bias.keys():
                 self.v_bias[k] = beta1 * self.v_bias[k] + (1 - beta1) * self.gradients[k]
-                v_corrected[k] = self.v_weight[k] / (1 - beta1**i)
+                v_corrected[k] = self.v_bias[k] / (1 - beta1**i)
 
             # update weight and bias of ctt gate
             self._params["Wc"] = self._params["Wc"] - lr*(v_corrected["dWctt"] / (np.sqrt(s_corrected["dWctt"]) + eps))
