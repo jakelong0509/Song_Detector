@@ -53,3 +53,26 @@ def normalization(X, Tx):
     variance = 1/Tx * np.sum(X**2, axis = 0)
     X = X/variance
     return X
+
+def dictionary_to_vector(dict):
+    vector = []
+    keys_shape = {}
+    for k, v in dict.items():
+        keys_shape[k] = v.shape
+        for r in dict[k]:
+            for i in r:
+                vector.append(i)
+
+    return vector, keys_shape
+
+def vector_to_dictionary(vector, keys_shape):
+    dict = {}
+    for k,v in keys_shape.items():
+        row, col = v
+        vec_num = row * col
+        vec_temp = vector[:vec_num]
+        remain = vector[vec_num:]
+        dict[k] = vec_temp.reshape(v)
+        vector = remain
+    
+    return vector, dict

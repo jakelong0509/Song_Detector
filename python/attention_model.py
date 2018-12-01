@@ -1,5 +1,7 @@
 import numpy as np
+import pickle
 from threading import Thread
+
 
 from functions import helper_func as func, activations as act
 
@@ -33,6 +35,7 @@ class attention_model():
         self.gradients_layer = None
         self.optimizer = optimizer
         self.first = True
+        self.second = False
         # initialize weight for model
         # input to neural have shape = (1, n_a + n_s)
         self._params = {}
@@ -55,16 +58,19 @@ class attention_model():
 
         assert(curr_input.shape == (1, self.n_a + self.n_s))
         input = curr_input # shape = (1, n_a + n_s)
+
         caches_t_s = []
         for i in range(len(self._layer)):
             Z = np.matmul(input, self._params["W"+str(i+1)]) + self._params["b"+str(i+1)]
-            e = act.tanh(Z)
+            e = np.tanh(Z)
             cache = (input, Z, e)
             caches_t_s.append(cache)
             input = e
+
             del Z, cache, e
         # last layer
         Z_last = np.matmul(input, self._params["We"]) + self._params["be"]
+
         energy = act.relu(Z_last)
         cache_last = (input, Z_last, energy)
         caches_t_s.append(cache_last)
@@ -138,8 +144,8 @@ class attention_model():
                 # shape = (1 , 1)
                 d_Z_last = d_energy * act.backward_relu(Z)
 
-                # shape = (1,10)
-                dWe = np.matmul(d_Z_last, input)
+                # shape = ()
+                dWe = np.matmul(np.transpose(input), d_Z_last)
                 dbe = d_Z_last
                 gradients["dWe"] = dWe
                 gradients["dbe"] = dbe
@@ -269,6 +275,8 @@ class attention_model():
         """
         self.update_gradient()
         i = i + 1
+
+        lr = lr * np.sqrt(1 - beta2**i) / (1 - beta1**i)
         if self.optimizer == "Adam":
             s_corrected = {}
             v_corrected = {}
@@ -300,8 +308,13 @@ class attention_model():
             self._params["We"] = self._params["We"] - lr*self.gradients_layer["dWe"]
             self._params["be"] = self._params["be"] - lr*self.gradients_layer["dbe"]
 
+        self.save_weights
         self.reset_gradients()
-
+        self.second = True
     def reset_gradients(self):
         self.gradients_t = []
         self.gradients_layer = None
+
+    def save_weights(self):
+        with open("weights/"+self.name+".pickle", "wb") as f:
+            pickle.dump(self._params, f, protocol = pickle.HIGHEST_PROTOCOL)

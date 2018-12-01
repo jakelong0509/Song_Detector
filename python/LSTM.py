@@ -4,7 +4,8 @@ import sys
 from functions import activations as act, helper_func as func
 from wrapper import Bidirectional
 import progressbar
-
+import pickle
+np.set_printoptions(threshold = np.nan)
 class LSTM():
     def __init__(self, name, input_dim, output_dim, is_attention = False, is_dropout = False, optimizer = None):
         """
@@ -24,6 +25,7 @@ class LSTM():
         self.is_backward = False
         self.is_attention = is_attention
         self.is_dropout = is_dropout
+        self.second = False
         # retrieve dimension
         self.T, self.n_x = self.input_dim
         _, self.n_a = self.output_dim
@@ -47,7 +49,7 @@ class LSTM():
         # initialize forget params
         _re_f_W = func.orthogonal(self.n_a)
         _ke_f_W = func.xavier((self.n_a, self.n_x))
-        _f_b = np.zeros((1,self.n_a))
+        _f_b = np.ones((1,self.n_a))
         _f_W = np.concatenate((_re_f_W, _ke_f_W), axis = 1) # shape = (n_a, n_a + n_x)
         self._params["Wf"] = _f_W
         self._params["bf"] = _f_b
@@ -79,18 +81,18 @@ class LSTM():
             concat, d_ax_drop = act.dropout(concat, level = 0.5)
             c_prev, d_c_drop = act.dropout(c_prev, level = 0.5)
 
-        ctt = act.tanh(np.matmul(concat, np.transpose(self._params["Wc"])) + self._params["bc"])
+        ctt = np.tanh(np.matmul(concat, np.transpose(self._params["Wc"])) + self._params["bc"])
         fu = act.sigmoid(np.matmul(concat, np.transpose(self._params["Wu"])) + self._params["bu"])
         ff = act.sigmoid(np.matmul(concat, np.transpose(self._params["Wf"])) + self._params["bf"])
         fo = act.sigmoid(np.matmul(concat, np.transpose(self._params["Wo"])) + self._params["bo"])
         ct = np.multiply(fu, ctt) + np.multiply(ff, c_prev)
-        at = np.multiply(fo, act.tanh(ct)) # shape = (1,n_a)
+        at = np.multiply(fo, np.tanh(ct)) # shape = (1,n_a)
 
 
         cache = (concat, ctt, fu, ff, fo, ct, at, a_prev, c_prev, d_ax_drop, d_c_drop)
         self.caches.append(cache)
 
-        del ctt, fu, ff, fo, concat, d_ax_drop, d_c_drop
+
 
 
         return at, ct, cache
@@ -125,7 +127,7 @@ class LSTM():
 
             c_prev = ct
             self.A.append(at.reshape(-1))
-            del cache, at, ct
+
 
         return np.array(self.A)
 
@@ -164,7 +166,7 @@ class LSTM():
 
         # derivative of fo at current time-step
         # shape = (1,n_a)
-        dfo = da * act.tanh(ct) * act.backward_sigmoid(fo)
+        dfo = da * np.tanh(ct) * act.backward_sigmoid(fo)
         assert(dfo.shape == (1, self.n_a))
 
         # derivative of c
@@ -225,7 +227,7 @@ class LSTM():
             self.s_bias = {k: np.zeros_like(v) for k,v in gradients_t_bias.items()}
             self.first = False
 
-        del da, dfo, dc, dff, dfu, dctt
+
 
 
         return gradients_t, dX, da_prev, dc_prev
@@ -284,13 +286,14 @@ class LSTM():
                 d_AS_list.append(d_AS) # Ty -> 1
 
                 # delete d_AS, att_gradients_t variables when already being append to d_AS_list
-                del d_AS, att_gradients_t
+
 
             # delete gradients_t, dX, da_prev, dc_prev variable when not use anymore
-            del gradients_t, dX, da_prev, dc_prev
+
         if self.is_attention:
             d_AS_list = np.flip(d_AS_list, axis=0) # flip 1->Ty
         self.gradients = grads
+
         # reset caches when not use anymore
         self.caches = []
 
@@ -324,6 +327,7 @@ class LSTM():
         # run update_gradient to update self.gradients
         # self.update_gradient()
         i = i + 1
+        lr = lr * np.sqrt(1 - beta2**i) / (1 - beta1**i)
         if self.optimizer == "Adam":
             s_corrected = {}
             v_corrected = {}
@@ -376,12 +380,16 @@ class LSTM():
             self._params["bu"] = self._params["bu"] - lr*self.gradients["dbu"]
 
         self.reset_gradients()
-
+        self.save_weights()
+        self.second = True
     def reset_gradients(self):
         self.caches = []
         self.gradients = None
         self.gradients_list_t = []
 
+    def save_weights(self):
+        with open("weights/"+self.name+".pickle", "wb") as f:
+            pickle.dump(self._params, f, protocol = pickle.HIGHEST_PROTOCOL)
 
 if __name__ == "__main__":
     input_dim = (10,10,3)

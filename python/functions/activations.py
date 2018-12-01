@@ -7,27 +7,23 @@ def hard_sigmoid(Z):
     y = 0.2 * Z + 0.5
     return np.clip(y, 0, 1)
 
-def tanh(Z):
-    return (np.exp(Z) - np.exp(-Z)) / (np.exp(Z) + np.exp(-Z))
 
 def relu(Z):
-    return np.atleast_2d(max(0,Z))
+    return (Z > 0) * Z
 
 def softmax(Z):
-    deli = np.sum(np.exp(Z))
-    return np.exp(Z) / deli
+    e_x = np.exp(Z - np.max(Z))
+    return e_x / e_x.sum(axis = 1)
 
 def backward_sigmoid(a):
     return a * (1 - a)
 
 def backward_tanh(Z):
-    return 1-(tanh(Z))**2
+    return 1-(np.tanh(Z))**2
 
 def backward_relu(Z):
-    if Z > 0:
-        return 1
-    elif Z <= 0:
-        return 0
+    mul = np.ones(Z.shape)
+    return (Z > 0) * mul
 
 def backward_softmax(t_hat, i):
     t_hat[i] = t_hat[i] - 1

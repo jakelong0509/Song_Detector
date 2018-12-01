@@ -3,6 +3,7 @@ import os
 import sys
 import progressbar
 import gc
+import pickle
 from LSTM import LSTM
 from wrapper import Bidirectional
 from Regularization import regularization
@@ -37,10 +38,15 @@ class model:
         # Wy shape = (n_s,n_y)
         self.Wy = func.xavier((self.n_s, self.n_y))
         self.by = np.zeros((1, self.n_y))
+        self.optimizer = optimizer
+        self.s_weight = 0
+        self.s_bias = 0
+        self.v_weight = 0
+        self.v_bias = 0
 
+        self._params = {"Wy": self.Wy, "by": self.by}
 
-
-        self.pre_LSTM = LSTM("pre_LSTM", (self.Tx, self.n_x), (self.Tx, self.n_a), optimizer = optimizer)
+        self.pre_LSTM = LSTM("pre_LSTM", (self.Tx, self.n_x), (self.Tx, self.n_a), is_dropout = True, optimizer = optimizer)
         self.pre_bi_LSTM = Bidirectional("pre_bi_LSTM", self.pre_LSTM)
         self.attention = attention_model("attention", self.n_c, self.S, self.n_s, self.n_c, self.hidden_dimension, optimizer = optimizer)
         self.post_LSTM = LSTM("post_LSTM", (self.Ty, self.n_c), (self.Ty, self.n_s), is_attention = True, is_dropout = True, optimizer = optimizer)
@@ -54,13 +60,13 @@ class model:
         ---parameter---
         i: index
         """
-        X = normalize(self.X[i,:,:], axis = 0)
+        # self.gradient_checking()
+        X = normalize(self.X[i,:,:], axis = 1)
 
         A = self.pre_bi_LSTM.concatLSTM(X) # shape = (Tx, 2 * n_a)
-
         # TODO: dropout A
-        A = np.array(act.dropout(A, level=0.5)[0])
-        A = normalize(A, axis = 0)
+        # A = np.array(act.dropout(A, level=0.5)[0])
+
         self.attention._A = A
         # attention and post_LSTM
         start = 0
@@ -73,6 +79,7 @@ class model:
             alphas, c, _energies, _caches_t, current_A = self.attention.nn_forward_propagation(prev_s, start, end)
             start = start + self.jump_step
             end = end + self.jump_step
+
             # for backpropagation use ***** this step take 30% of RAM in total *******
             self.Att_As.append(current_A)
             self.Att_caches.append(_caches_t)
@@ -83,11 +90,10 @@ class model:
             prev_s = st
             prev_a = at
 
-            del alphas, c, _energies, _caches_t, current_A, st, at, cache
+
         # convert lstm_S(list) to lstm_S(np array)
         lstm_S = np.array(lstm_S).reshape((self.Ty, self.n_s))
-        lstm_S = act.dropout(lstm_S, level=0.8)[0]
-        lstm_S = normalize(lstm_S, axis = 0)
+
         self.last_layer_hidden_state = lstm_S
         del lstm_S
         # TODO: dropout lstm_S
@@ -97,10 +103,10 @@ class model:
         Y_hat = []
         print("Predicting Y")
         for t in progressbar.progressbar(range(self.Ty)): # st shape = (1, n_s)
-            Zy = np.matmul(np.atleast_2d(self.last_layer_hidden_state[t,:]), self.Wy) + self.by # shape = (1, n_y)
+            Zy = np.matmul(np.atleast_2d(self.last_layer_hidden_state[t,:]), self._params["Wy"]) + self._params["by"] # shape = (1, n_y)
             yt_hat = act.softmax(Zy)
             Y_hat.append(yt_hat.reshape(-1)) # yt_hat after reshape = (n_y,)
-            del Zy, yt_hat
+
         # Y_hat shape = (Ty, n_y)
         Y_true = np.array(self.Y[i,:,:]) # (Ty, n_y)
         Y_hat = np.array(Y_hat)
@@ -110,7 +116,7 @@ class model:
             lost = func.t_lost(Y_true[t,:], Y_hat[t,:])
             total_lost = total_lost + lost
 
-        total_lost = -(total_lost/self.Ty)
+        total_lost = (total_lost/self.Ty)
 
         return total_lost, Y_hat, Y_true
 
@@ -122,14 +128,14 @@ class model:
         Y_hat: predicted value given training data X
         Y_true: True label value of training data X
         """
-
+        dL = -(1/self.Ty)
         # shape (Ty, n_y)
-        dZ = (Y_hat - Y_true)
+        dZ = dL * (Y_hat - Y_true)
         assert(dZ.shape == (self.Ty, self.n_y))
         # calculate dWy and dby
         dWy = np.matmul(np.transpose(self.last_layer_hidden_state.reshape(self.Ty, self.n_s)), dZ)
         dby = np.atleast_2d(np.sum(dZ, axis = 0))
-        self.update_weight(dWy, dby, lr)
+        self.update_weight(dWy, dby, i, lr, optimizer = self.optimizer)
 
         assert(dWy.shape == (self.n_s, self.n_y) and dby.shape == (1, self.n_y))
         #shape = (Ty, n_s)
@@ -143,27 +149,57 @@ class model:
         self.Att_caches = []
         self.Att_alphas = []
 
-        
+
         self.pre_bi_LSTM.cell_backpropagation(d_AS_list, self.jump_step, self.Ty, self.Tx)
         self.pre_bi_LSTM.update_weight(lr, i)
 
 
-    def update_weight(self, dWy, dby, lr=0.005):
-        self.Wy = self.Wy - lr*dWy
-        self.by = self.by - lr*dby
+
+    def update_weight(self, dWy, dby, i ,lr=0.005, optimizer = None, beta1 = 0.9, beta2 = 0.999, eps = 1e-8):
+
+        i = i + 1
+        lr = lr * np.sqrt(1-beta2**i)/(1-beta1**i)
+        s_corrected_weight = None
+        s_corrected_bias = None
+        v_corrected_weight = None
+        v_corrected_bias = None
+        if optimizer == "Adam":
+            self.s_weight = beta2 * self.s_weight + (1 - beta2) * (dWy ** 2)
+            s_corrected_weight = self.s_weight / (1 - beta2**i)
+            self.s_bias = beta2 * self.s_bias + (1 - beta2) * (dby ** 2)
+            s_corrected_bias = self.s_bias / (1 - beta2**i)
+
+            self.v_weight = beta1 * self.v_weight + (1 - beta1) * dWy
+            v_corrected_weight = self.v_weight / (1 - beta1**i)
+            self.v_bias = beta1 * self.v_bias + (1 - beta1) * dby
+            v_corrected_bias = self.v_bias / (1 - beta1**i)
+
+            self.Wy = self.Wy - lr*(v_corrected_weight/(np.sqrt(s_corrected_weight) + eps))
+            self.by = self.by - lr*(v_corrected_bias/(np.sqrt(s_corrected_bias) + eps))
+        else:
+            self.Wy = self.Wy - lr*dWy
+            self.by = self.by - lr*dby
+
+        self._params["Wy"] = self.Wy
+        self._params["by"] = self.by
+
+        self.save_weights()
 
     def train(self):
         lr = self.lr
         print("Starting to train Detector..........")
         for e in range(self.epoch):
             print("Epoch {}/{}".format(e, self.epoch))
-            decay = lr / (e+1)
-            lr = lr * (1.0 / (1.0 + decay * e))
             for i in progressbar.progressbar(range(self.m)):
+
                 total_lost, Y_hat, Y_true = self.forward_propagation_one_ex(i)
                 print("Total Lost: ", total_lost)
                 self.backward_propagation_one_ex(Y_hat, Y_true, i, lr)
 
+
+    def save_weights(self):
+        with open("weights/predict_layer.pickle", "wb") as f:
+            pickle.dump(self._params, f, protocol = pickle.HIGHEST_PROTOCOL)
 
     def predict(self, data):
         Tx, _ = data.shape
@@ -202,3 +238,72 @@ class model:
             yt_hat = act.softmax(Zy)
             print(yt_hat)
             Y_hat.append(yt_hat.reshape(-1)) # yt_hat after reshape = (n_y,)
+
+    def gradient_checking(self, dby, dWy, i, eps = 1e-4):
+        model_vec, model_keys_shape = func.dictionary_to_vector(self._params)
+        LSTM_forward_vec, LSTM_forward_keys_shape = func.dictionary_to_vector(self.pre_bi_LSTM.forward._params)
+        LSTM_backward_vec, LSTM_backward_keys_shape = func.dictionary_to_vector(self.pre_bi_LSTM.backward._params)
+        attention_vec, attention_keys_shape = func.dictionary_to_vector(self.attention._params)
+        post_LSTM_vec, post_LSTM_keys_shape = func.dictionary_to_vector(self.post_LSTM._params)
+
+        params_vector = np.concatenate([model_vec, LSTM_forward_vec, LSTM_backward_vec, attention_vec, post_LSTM_vec])
+        remain_vector = None
+        model_dict = {"dby": dby, "dWy": dWy}
+        model_grads, model_grads_keys_shape = func.dictionary_to_vector(model_dict)
+        LSTM_forward_grads, LSTM_forward_grads_keys_shape = func.dictionary_to_vector(self.pre_bi_LSTM.forward.gradients)
+        LSTM_backward_grads, LSTM_backward_grads_keys_shape = func.dictionary_to_vector(self.pre_bi_LSTM.backward.gradients)
+        attention_grads, attention_grads_keys_shape = func.dictionary_to_vector(self.attention.gradients_layer)
+        post_LSTM_grads, post_LSTM_grads_keys_shape = func.dictionary_to_vector(self.post_LSTM.gradients)
+
+        grads_vector = np.concatenate([model_grads, LSTM_forward_grads, LSTM_backward_grads, attention_grads, post_LSTM_grads])
+
+        num_parameters = params_vector.shape[0]
+        J_plus = np.zeros((num_parameters, 1))
+        J_minus = np.zeros((num_parameters, 1))
+        gradapprox = np.zeros((num_parameters, 1))
+        for n in range(num_parameters):
+            print("{}/{}".format(n,num_parameters))
+            thetaplus = np.copy(params_vector)
+            thetaplus[n] = thetaplus[n] + eps
+            remain_vector, model_params = func.vector_to_dictionary(thetaplus, model_keys_shape)
+            remain_vector, LSTM_forward_params = func.vector_to_dictionary(remain_vector, LSTM_forward_keys_shape)
+            remain_vector, LSTM_backward_params = func.vector_to_dictionary(remain_vector, LSTM_backward_keys_shape)
+            remain_vector, attention_params = func.vector_to_dictionary(remain_vector, attention_keys_shape)
+            remain_vector, post_LSTM_params = func.vector_to_dictionary(remain_vector, post_LSTM_keys_shape)
+
+            self._params = model_params
+            self.pre_bi_LSTM.forward._params = LSTM_forward_params
+            self.pre_bi_LSTM.backward._params = LSTM_backward_params
+            self.attention._params = attention_params
+            self.post_LSTM._params = post_LSTM_params
+
+            J_plus[n], _, _ = self.forward_propagation_one_ex(i)
+
+
+            thetaminus = np.copy(params_vector)
+            thetaminus[n] = thetaminus[n] + eps
+            remain_vector, model_params = func.vector_to_dictionary(thetaminus, model_keys_shape)
+            remain_vector, LSTM_forward_params = func.vector_to_dictionary(remain_vector, LSTM_forward_keys_shape)
+            remain_vector, LSTM_backward_params = func.vector_to_dictionary(remain_vector, LSTM_backward_keys_shape)
+            remain_vector, attention_params = func.vector_to_dictionary(remain_vector, attention_keys_shape)
+            remain_vector, post_LSTM_params = func.vector_to_dictionary(remain_vector, post_LSTM_keys_shape)
+
+            self._params = model_params
+            self.pre_bi_LSTM.forward._params = LSTM_forward_params
+            self.pre_bi_LSTM.backward._params = LSTM_backward_params
+            self.attention._params = attention_params
+            self.post_LSTM._params = post_LSTM_params
+
+            J_minus[n], _, _ = self.forward_propagation_one_ex(i)
+
+            gradapprox[n] = (J_plus[n] - J_minus[n]) / (2 * eps)
+
+
+        numerator = np.linalg.norm(grads_vector - gradapprox)
+        demoninator = np.linalg.norm(grads_vector) + np.linalg.norm(gradapprox)
+        difference = numerator / demoninator
+
+        if difference > 1e-7:
+            print("Wrong")
+        else:
+            print("Right")

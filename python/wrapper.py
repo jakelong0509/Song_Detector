@@ -6,9 +6,10 @@ class Bidirectional():
     def __init__(self, name, layer):
         self.name = name
         self.forward = copy.copy(layer)
-
+        self.forward.name = "biDirectional_" + self.forward.name + "_forward"
         self.backward = copy.copy(layer)
         self.backward.is_backward = True
+        self.backward.name = "biDirectional_"+ self.backward.name +"_backward"
 
 
         self.dA_forward = None
@@ -39,9 +40,7 @@ class Bidirectional():
         # att_dA_list 1 -> Ty
         # take first dA of first list to get n_a
         n_a = att_dA_list[0][0].shape[1]
-        print(n_a)
         S = len(att_dA_list[0])
-        print(S)
         # initialize shape of dA --- dA.shape == A.shape
         dA = np.zeros((Tx, n_a))
         start = 0
