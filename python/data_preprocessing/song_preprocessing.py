@@ -107,3 +107,20 @@ def preprocessing_data(dir, Tx, Ty):
         y.append(y_ohs)
     y = np.array(y)
     return x,y
+
+def insert_string_in_middle(string, word):
+    return string[:-4] + word + string[-4:]
+
+def split_song(dir, no_divided_songs = 10):
+    songs, _ = get_songs(dir)
+    for s in songs:
+        rate, data = get_wav_info(dir+s)
+        no_jumps = int(np.round(data.shape[0] / no_divided_songs))
+        start = 0
+        end = no_jumps
+        for i in range(no_divided_songs):
+            data_temp = data[start:end, :]
+            start = end
+            end = end + no_jumps
+            name = insert_string_in_middle(s, str(i))
+            wavfile.write("../songs_splited/"+name, rate, data_temp)

@@ -190,7 +190,7 @@ class attention_model():
         d_s_prev = np.zeros((1, self.n_s))
         alphas = _alphas.reshape(-1)
         first = True
-        gradients_t = None
+        gradients_t = []
         for s in reversed(range(self.S)):
             alpha = np.atleast_2d(alphas[s])
             d_at_s, d_s_prev_s, d_ca_s, gradients = self.nn_cell_backward_propagation(dC, alpha, np.atleast_2d(_current_A[s]), _caches_t[s])
@@ -200,17 +200,17 @@ class attention_model():
             d_AS.append(d_as) # S -> 1
 
             d_s_prev = d_s_prev + d_s_prev_s
-            # gradients_t.append(gradients)
+            gradients_t.append(gradients)
             # adding gradient of 1 model in layer of models
-            if first:
-                gradients_t = gradients
-                first = False
-            else:
-                for k in gradients_t.keys():
-                    gradients_t[k] = gradients_t[k] + gradients[k]
+            # if first:
+            #     gradients_t = gradients
+            #     first = False
+            # else:
+            #     for k in gradients_t.keys():
+            #         gradients_t[k] = gradients_t[k] + gradients[k]
 
         d_AS = np.flip(d_AS, axis = 0) # flip 1 -> S
-        self.gradients_t.append(gradients_t)
+        # self.gradients_t.append(gradients_t)
         # gradients_t returned as a dictionary
         return d_s_prev, d_AS, gradients_t
 
@@ -277,6 +277,7 @@ class attention_model():
         i = i + 1
 
         lr = lr * np.sqrt(1 - beta2**i) / (1 - beta1**i)
+        print("Learning rate attention: ", lr)
         if self.optimizer == "Adam":
             s_corrected = {}
             v_corrected = {}
@@ -308,7 +309,7 @@ class attention_model():
             self._params["We"] = self._params["We"] - lr*self.gradients_layer["dWe"]
             self._params["be"] = self._params["be"] - lr*self.gradients_layer["dbe"]
 
-        self.save_weights
+        self.save_weights()
         self.reset_gradients()
         self.second = True
     def reset_gradients(self):

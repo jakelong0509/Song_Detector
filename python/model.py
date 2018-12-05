@@ -14,7 +14,7 @@ from sklearn.preprocessing import normalize
 
 
 class model:
-    def __init__(self, X, Y, S, Tx, Ty, lr = 0.1, n_a = 32, n_s = 64, jump_step = 100, epoch = 100, sec = 5, optimizer = None):
+    def __init__(self, X, Y, S, Tx, Ty, lr = 0.005, n_a = 64, n_s = 32, jump_step = 100, epoch = 100, sec = 5, optimizer = None):
         self.X = X
         self.Y = Y
         self.S = S
@@ -27,7 +27,7 @@ class model:
         self.n_a = n_a
         self.n_s = n_s
         self.n_c = self.n_a * 2
-        self.hidden_dimension = [64]
+        self.hidden_dimension = [10]
         self.jump_step = jump_step
         self.epoch = epoch
         self.sec = sec
@@ -43,17 +43,17 @@ class model:
         self.s_bias = 0
         self.v_weight = 0
         self.v_bias = 0
-
+        self.TRAINING_THRESHOLD = 0
         self._params = {"Wy": self.Wy, "by": self.by}
 
-        self.pre_LSTM = LSTM("pre_LSTM", (self.Tx, self.n_x), (self.Tx, self.n_a), is_dropout = True, optimizer = optimizer)
+        self.pre_LSTM = LSTM("pre_LSTM", (self.Tx, self.n_x), (self.Tx, self.n_a), optimizer = optimizer)
         self.pre_bi_LSTM = Bidirectional("pre_bi_LSTM", self.pre_LSTM)
         self.attention = attention_model("attention", self.n_c, self.S, self.n_s, self.n_c, self.hidden_dimension, optimizer = optimizer)
-        self.post_LSTM = LSTM("post_LSTM", (self.Ty, self.n_c), (self.Ty, self.n_s), is_attention = True, is_dropout = True, optimizer = optimizer)
+        self.post_LSTM = LSTM("post_LSTM", (self.Ty, self.n_c), (self.Ty, self.n_s), is_dropout = True, is_attention = True, optimizer = optimizer)
 
 
 
-    def forward_propagation_one_ex(self, i):
+    def forward_propagation_one_ex(self, i, e):
         """
         description:
             forward propagation for one training example; data x label y
@@ -65,7 +65,7 @@ class model:
 
         A = self.pre_bi_LSTM.concatLSTM(X) # shape = (Tx, 2 * n_a)
         # TODO: dropout A
-        # A = np.array(act.dropout(A, level=0.5)[0])
+        A = np.array(act.dropout(A, level=0.8)[0])
 
         self.attention._A = A
         # attention and post_LSTM
@@ -105,6 +105,7 @@ class model:
         for t in progressbar.progressbar(range(self.Ty)): # st shape = (1, n_s)
             Zy = np.matmul(np.atleast_2d(self.last_layer_hidden_state[t,:]), self._params["Wy"]) + self._params["by"] # shape = (1, n_y)
             yt_hat = act.softmax(Zy)
+            print(yt_hat)
             Y_hat.append(yt_hat.reshape(-1)) # yt_hat after reshape = (n_y,)
 
         # Y_hat shape = (Ty, n_y)
@@ -120,7 +121,7 @@ class model:
 
         return total_lost, Y_hat, Y_true
 
-    def backward_propagation_one_ex(self, Y_hat, Y_true, i, lr):
+    def backward_propagation_one_ex(self, Y_hat, Y_true, i, e, lr):
         """
         Description:
             backward propagation for one training example; data x label y
@@ -128,22 +129,22 @@ class model:
         Y_hat: predicted value given training data X
         Y_true: True label value of training data X
         """
-        dL = -(1/self.Ty)
+        # dL = (1/self.Ty)
         # shape (Ty, n_y)
-        dZ = dL * (Y_hat - Y_true)
+        dZ = (Y_hat - Y_true)
         assert(dZ.shape == (self.Ty, self.n_y))
         # calculate dWy and dby
         dWy = np.matmul(np.transpose(self.last_layer_hidden_state.reshape(self.Ty, self.n_s)), dZ)
         dby = np.atleast_2d(np.sum(dZ, axis = 0))
-        self.update_weight(dWy, dby, i, lr, optimizer = self.optimizer)
+        self.update_weight(dWy, dby, e, lr, optimizer = self.optimizer)
 
         assert(dWy.shape == (self.n_s, self.n_y) and dby.shape == (1, self.n_y))
         #shape = (Ty, n_s)
 
         dS = np.matmul(dZ, np.transpose(self.Wy))
         d_AS_list = self.post_LSTM.backward_propagation(dS, self.Att_As, self.Att_caches, self.Att_alphas, self.attention)
-        self.post_LSTM.update_weight(lr, i)
-        self.attention.update_weight(lr, i)
+        self.post_LSTM.update_weight(lr, e)
+        self.attention.update_weight(lr, e)
 
         self.Att_As = []
         self.Att_caches = []
@@ -151,7 +152,7 @@ class model:
 
 
         self.pre_bi_LSTM.cell_backpropagation(d_AS_list, self.jump_step, self.Ty, self.Tx)
-        self.pre_bi_LSTM.update_weight(lr, i)
+        self.pre_bi_LSTM.update_weight(lr, e)
 
 
 
@@ -192,9 +193,10 @@ class model:
             print("Epoch {}/{}".format(e, self.epoch))
             for i in progressbar.progressbar(range(self.m)):
 
-                total_lost, Y_hat, Y_true = self.forward_propagation_one_ex(i)
+                total_lost, Y_hat, Y_true = self.forward_propagation_one_ex(i, e)
                 print("Total Lost: ", total_lost)
-                self.backward_propagation_one_ex(Y_hat, Y_true, i, lr)
+                if total_lost > self.TRAINING_THRESHOLD:
+                    self.backward_propagation_one_ex(Y_hat, Y_true, i, e, lr)
 
 
     def save_weights(self):

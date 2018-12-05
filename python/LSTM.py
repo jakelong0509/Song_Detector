@@ -280,7 +280,7 @@ class LSTM():
                 ds_c_next, d_AS, att_gradients_t = attention.nn_backward_propagation(dX, Att_alphas[t], Att_As[t], Att_caches[t])
 
                 # run multithreading to calc attention model grads at time step t
-                # attention.cell_update_gradient_t(att_gradients_t, 8)
+                attention.cell_update_gradient_t(att_gradients_t, 8)
 
                 # append list d_AS to list d_AS_list
                 d_AS_list.append(d_AS) # Ty -> 1
@@ -328,6 +328,7 @@ class LSTM():
         # self.update_gradient()
         i = i + 1
         lr = lr * np.sqrt(1 - beta2**i) / (1 - beta1**i)
+        print("Learning Rate LSTM: ", lr)
         if self.optimizer == "Adam":
             s_corrected = {}
             v_corrected = {}

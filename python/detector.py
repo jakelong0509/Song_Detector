@@ -31,7 +31,8 @@ if __name__ == "__main__":
     # get Ty
     Ty = song_preprocessing.get_Ty(Tx, S, jump_step)
 
+    #song_preprocessing.split_song(songs_dir + "/")
     # preprocessing data X.shape = (m, Tx, n_x) | Y.shape = (m, Ty, n_y)
     X, Y = song_preprocessing.preprocessing_data(songs_dir + "/", Tx, Ty)
-    model = model(X, Y, S, Tx, Ty, lr = 0.1, n_a = 32, n_s = 64, jump_step = jump_step, epoch = 100, sec = sec, optimizer="Adam")
+    model = model(X, Y, S, Tx, Ty, lr = 0.005, n_a = 64, n_s = 128, jump_step = jump_step, epoch = 100, sec = sec, optimizer="Adam")
     model.train()
