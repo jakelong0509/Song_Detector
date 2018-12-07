@@ -78,17 +78,15 @@ class attention_model():
         del input, Z_last, cache_last
         return energy, caches_t_s
 
-    def nn_forward_propagation(self, prev_s, start, end, data_to_predict = None):
+    def nn_forward_propagation(self, prev_s, start, end):
         """
         prev_s: hidden state of post-LSTM from time step t-1 in Ty (1, n_s)
         start: start index to slice self._A
         end: end index to slice self._A
         """
-        _current_A = None
-        if data_to_predict == None:
-            _current_A = self._A[start:end, :]
-        else:
-            _current_A = data_to_predict[start:end, :]
+
+        _current_A = self._A[start:end, :]
+        
         # call duplicate function fron functions module to duplicate _prev_s from (1,n_s) to (S, n_s)
         _prev_S = func.duplicate(self.S, self.n_s, prev_s, axis = 0)
 

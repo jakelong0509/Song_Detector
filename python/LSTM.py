@@ -78,9 +78,11 @@ class LSTM():
         d_ax_drop = np.ones(concat.shape)
         d_c_drop = np.ones((1, self.n_a))
         if self.is_dropout:
-            concat, d_ax_drop = act.dropout(concat, level = 0.5)
-            c_prev, d_c_drop = act.dropout(c_prev, level = 0.5)
-
+            a_drop, d_a_drop = act.dropout(a_prev, level = 0.8)
+            x_drop, d_x_drop = act.dropout(xt, level = 0.8)
+            c_prev, d_c_drop = act.dropout(c_prev, level = 0.8)
+            d_ax_drop = np.concatenate((d_a_drop, d_x_drop), axis = 1)
+            concat = np.concatenate((a_drop, x_drop), axis = 1)
         ctt = np.tanh(np.matmul(concat, np.transpose(self._params["Wc"])) + self._params["bc"])
         fu = act.sigmoid(np.matmul(concat, np.transpose(self._params["Wu"])) + self._params["bu"])
         ff = act.sigmoid(np.matmul(concat, np.transpose(self._params["Wf"])) + self._params["bf"])

@@ -27,7 +27,7 @@ class model:
         self.n_a = n_a
         self.n_s = n_s
         self.n_c = self.n_a * 2
-        self.hidden_dimension = [10]
+        self.hidden_dimension = [64,10]
         self.jump_step = jump_step
         self.epoch = epoch
         self.sec = sec
@@ -46,10 +46,10 @@ class model:
         self.TRAINING_THRESHOLD = 0
         self._params = {"Wy": self.Wy, "by": self.by}
 
-        self.pre_LSTM = LSTM("pre_LSTM", (self.Tx, self.n_x), (self.Tx, self.n_a), optimizer = optimizer)
+        self.pre_LSTM = LSTM("pre_LSTM", (self.Tx, self.n_x), (self.Tx, self.n_a), optimizer = optimizer, is_dropout = True)
         self.pre_bi_LSTM = Bidirectional("pre_bi_LSTM", self.pre_LSTM)
         self.attention = attention_model("attention", self.n_c, self.S, self.n_s, self.n_c, self.hidden_dimension, optimizer = optimizer)
-        self.post_LSTM = LSTM("post_LSTM", (self.Ty, self.n_c), (self.Ty, self.n_s), is_dropout = True, is_attention = True, optimizer = optimizer)
+        self.post_LSTM = LSTM("post_LSTM", (self.Ty, self.n_c), (self.Ty, self.n_s), is_attention = True, optimizer = optimizer)
 
 
 
@@ -62,10 +62,10 @@ class model:
         """
         # self.gradient_checking()
         X = normalize(self.X[i,:,:], axis = 1)
-
+        X = act.relu(X)
         A = self.pre_bi_LSTM.concatLSTM(X) # shape = (Tx, 2 * n_a)
         # TODO: dropout A
-        A = np.array(act.dropout(A, level=0.8)[0])
+        #A = np.array(act.dropout(A, level=0.8)[0])
 
         self.attention._A = A
         # attention and post_LSTM
@@ -186,7 +186,7 @@ class model:
 
         self.save_weights()
 
-    def train(self):
+    def train(self, songs):
         lr = self.lr
         print("Starting to train Detector..........")
         for e in range(self.epoch):
@@ -195,21 +195,38 @@ class model:
 
                 total_lost, Y_hat, Y_true = self.forward_propagation_one_ex(i, e)
                 print("Total Lost: ", total_lost)
-                if total_lost > self.TRAINING_THRESHOLD:
-                    self.backward_propagation_one_ex(Y_hat, Y_true, i, e, lr)
-
+                self.backward_propagation_one_ex(Y_hat, Y_true, i, e, lr)
+                self.predict(self.X[i,:,:], songs)
 
     def save_weights(self):
         with open("weights/predict_layer.pickle", "wb") as f:
             pickle.dump(self._params, f, protocol = pickle.HIGHEST_PROTOCOL)
 
-    def predict(self, data):
-        Tx, _ = data.shape
+    def predict(self, data, songs):
+        Tx, n_x = data.shape
         assert(Tx >= self.S)
+
+        pre_LSTM = LSTM("pre_LSTM", (Tx, n_x), (Tx, self.n_a), optimizer = self.optimizer)
+        pre_bi_LSTM = Bidirectional("pre_bi_LSTM", pre_LSTM)
+        attention = attention_model("attention", self.n_c, self.S, self.n_s, self.n_c, self.hidden_dimension, optimizer = self.optimizer)
+        post_LSTM = LSTM("post_LSTM", (self.Ty, self.n_c), (self.Ty, self.n_s), is_attention = True, optimizer = self.optimizer)
+
+        LSTM_forward_params = pickle.load(open("weights/biDirectional_pre_LSTM_forward.pickle", "rb"))
+        LSTM_backward_params = pickle.load(open("weights/biDirectional_pre_LSTM_backward.pickle", "rb"))
+        attention_params = pickle.load(open("weights/attention.pickle", "rb"))
+        post_LSTM_params = pickle.load(open("weights/post_LSTM.pickle", "rb"))
+        params = pickle.load(open("weights/predict_layer.pickle", "rb"))
+
+        pre_bi_LSTM.forward._params = LSTM_forward_params
+        pre_bi_LSTM.backward._params = LSTM_backward_params
+        attention._params = attention_params
+        post_LSTM._params = post_LSTM_params
+
         Ty = song_preprocessing.get_Ty(Tx, self.S, self.jump_step)
-
-        A = self.pre_bi_LSTM.concatLSTM(data)
-
+        data = normalize(data, axis=1)
+        
+        A = pre_bi_LSTM.concatLSTM(data)
+        attention._A = A
         start = 0
         end = self.S
 
@@ -219,7 +236,7 @@ class model:
         lstm_S = []
         print("Calulating LSTM_S......")
         for t in progressbar.progressbar(range(Ty)):
-            alphas, c, _energies, _caches_t, current_A = attention.nn_forward_propagation(prev_s, start, end, data_to_predict = A)
+            alphas, c, _energies, _caches_t, current_A = attention.nn_forward_propagation(prev_s, start, end)
             start = start + self.jump_step
             end = end + self.jump_step
 
@@ -233,13 +250,17 @@ class model:
         # lstm_S = act.dropout(lstm_S, level = 0.5)
         # initialize last layer Wy
         # st shape = (1,n_s)
-        Y_hat = []
+
+        y_predict = 0
         print("Predicting Y")
-        for st in progressbar.progressbar(lstm_S): # st shape = (1, n_s)
-            Zy = np.matmul(st, self.Wy) + self.by # shape = (1, n_y)
+        for t in progressbar.progressbar(range(Ty)): # st shape = (1, n_s)
+            Zy = np.matmul(np.atleast_2d(lstm_S[t,:]), params["Wy"]) + params["by"] # shape = (1, n_y)
             yt_hat = act.softmax(Zy)
-            print(yt_hat)
-            Y_hat.append(yt_hat.reshape(-1)) # yt_hat after reshape = (n_y,)
+            y_predict = y_predict + yt_hat
+        y_predict = y_predict / Ty
+        print(y_predict)
+        index = np.argmax(y_predict)
+        print(songs[index])
 
     def gradient_checking(self, dby, dWy, i, eps = 1e-4):
         model_vec, model_keys_shape = func.dictionary_to_vector(self._params)
