@@ -27,7 +27,7 @@ class model:
         self.n_a = n_a
         self.n_s = n_s
         self.n_c = self.n_a * 2
-        self.hidden_dimension = [64,10]
+        self.hidden_dimension = [64,32]
         self.jump_step = jump_step
         self.epoch = epoch
         self.sec = sec
@@ -192,7 +192,7 @@ class model:
         for e in range(self.epoch):
             print("Epoch {}/{}".format(e, self.epoch))
             for i in progressbar.progressbar(range(self.m)):
-
+                print("Song: ", songs[i])
                 total_lost, Y_hat, Y_true = self.forward_propagation_one_ex(i, e)
                 print("Total Lost: ", total_lost)
                 self.backward_propagation_one_ex(Y_hat, Y_true, i, e, lr)
@@ -224,7 +224,7 @@ class model:
 
         Ty = song_preprocessing.get_Ty(Tx, self.S, self.jump_step)
         data = normalize(data, axis=1)
-        
+
         A = pre_bi_LSTM.concatLSTM(data)
         attention._A = A
         start = 0

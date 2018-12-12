@@ -13,7 +13,7 @@ def get_songs(dir):
     for(dirpath, dirnames, filenames) in os.walk(dir):
         songs = filenames
         song_no = len(filenames)
-
+    songs.sort()
     return songs, song_no
 
 
@@ -102,11 +102,14 @@ def preprocessing_data(dir, Tx, Ty):
     x = np.swapaxes(x, 1,2) # x.shape = (m, Tx, n_x)
 
     for i in y_indexes:
+        print(i)
         y_oh = to_one_hot(n_y, i)
         y_ohs = set_labels(y_oh, Ty, i)
         y.append(y_ohs)
     y = np.array(y)
     return x,y
+
+
 
 def insert_string_in_middle(string, word):
     return string[:-4] + word + string[-4:]
