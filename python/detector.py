@@ -39,7 +39,7 @@ if __name__ == "__main__":
     X, Y = song_preprocessing.preprocessing_data(songs_dir + "/", Tx, Ty)
 
     model = model(X, Y, S, Tx, Ty, lr = 0.005, n_a = 128, n_s = 128, jump_step = jump_step, epoch = 100, sec = sec, optimizer="Adam")
-    # model.train(songs)
+    #model.train(songs)
 
     # np.random.shuffle(songs_test)
     # for s in songs_test:
@@ -47,6 +47,6 @@ if __name__ == "__main__":
     #     X_predict, duration = song_preprocessing.graph_spectrogram("../songs_splited/"+s)
     #     model.predict(np.transpose(X_predict), songs)
 
-    print("song: ", str(sys.argv[1]))
-    X_predict, duration = song_preprocessing.graph_spectrogram("../songs/"+str(sys.argv[1]))
-    model.predict(np.transpose(X_predict), songs)
+    # print("song: ", str(sys.argv[1]))
+    # X_predict, duration = song_preprocessing.graph_spectrogram("../songs/"+str(sys.argv[1]))
+    # model.predict(np.transpose(X_predict), songs)

@@ -211,11 +211,11 @@ class model:
         attention = attention_model("attention", self.n_c, self.S, self.n_s, self.n_c, self.hidden_dimension, optimizer = self.optimizer)
         post_LSTM = LSTM("post_LSTM", (self.Ty, self.n_c), (self.Ty, self.n_s), is_attention = True, optimizer = self.optimizer)
 
-        LSTM_forward_params = pickle.load(open("weights_good/biDirectional_pre_LSTM_forward.pickle", "rb"))
-        LSTM_backward_params = pickle.load(open("weights_good/biDirectional_pre_LSTM_backward.pickle", "rb"))
-        attention_params = pickle.load(open("weights_good/attention.pickle", "rb"))
-        post_LSTM_params = pickle.load(open("weights_good/post_LSTM.pickle", "rb"))
-        params = pickle.load(open("weights_good/predict_layer.pickle", "rb"))
+        LSTM_forward_params = pickle.load(open("weights/biDirectional_pre_LSTM_forward.pickle", "rb"))
+        LSTM_backward_params = pickle.load(open("weights/biDirectional_pre_LSTM_backward.pickle", "rb"))
+        attention_params = pickle.load(open("weights/attention.pickle", "rb"))
+        post_LSTM_params = pickle.load(open("weights/post_LSTM.pickle", "rb"))
+        params = pickle.load(open("weights/predict_layer.pickle", "rb"))
 
         pre_bi_LSTM.forward._params = LSTM_forward_params
         pre_bi_LSTM.backward._params = LSTM_backward_params

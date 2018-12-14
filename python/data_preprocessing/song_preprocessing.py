@@ -85,6 +85,7 @@ def graph_spectrogram(wav_file):
 
 def preprocessing_data(dir, Tx, Ty):
     songs, n_y = get_songs(dir)
+    print(songs)
     y_indexes = []
     m = n_y
     x = []
