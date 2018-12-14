@@ -125,6 +125,7 @@ class LSTM():
 
             xt = np.atleast_2d(X[t, :])
             at, ct, cache = self.cell_forward(a_prev, c_prev, xt)
+            print(at)
             a_prev = at
 
             c_prev = ct

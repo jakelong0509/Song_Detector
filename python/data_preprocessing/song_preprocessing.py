@@ -128,3 +128,17 @@ def split_song(dir, no_divided_songs = 10):
             end = end + no_jumps
             name = insert_string_in_middle(s, str(i))
             wavfile.write("../songs_splited/"+name, rate, data_temp)
+
+def balance_dimension(a,b):
+    a_shape = a.shape
+    b_shape = b.shape
+    diff = np.abs(a_shape[0] - b_shape[0])
+    if a_shape > b_shape:
+        zeros = np.repeat(np.zeros((1,b_shape[1])), diff, axis=0)
+
+        b = np.append(b,zeros,axis=0)
+    elif b_shape > a_shape:
+        zeros = np.repeat(np.zeros((1,a_shape[1])), diff, axis=0)
+
+        a = np.append(a,zeros,axis=0)
+    return a,b
