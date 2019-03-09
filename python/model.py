@@ -198,7 +198,7 @@ class model:
                 total_lost, Y_hat, Y_true = self.forward_propagation_one_ex(i, e)
                 lost = lost + total_lost
                 self.backward_propagation_one_ex(Y_hat, Y_true, i, e, lr)
-                self.predict(self.X[i,:,:], songs)
+                self.predict(self.X[i,:,:], songs, "weights")
             loss.append(lost/self.m)
             if e % 100 == 0:
                 print(loss)
@@ -209,7 +209,7 @@ class model:
         with open("weights/predict_layer.pickle", "wb") as f:
             pickle.dump(self._params, f, protocol = pickle.HIGHEST_PROTOCOL)
 
-    def predict(self, data, songs):
+    def predict(self, data, songs, folder):
         Tx, n_x = data.shape
         assert(Tx >= self.S)
 
@@ -218,11 +218,11 @@ class model:
         attention = attention_model("attention", self.n_c, self.S, self.n_s, self.n_c, self.hidden_dimension, optimizer = self.optimizer)
         post_LSTM = LSTM("post_LSTM", (self.Ty, self.n_c), (self.Ty, self.n_s), is_attention = True, optimizer = self.optimizer)
 
-        LSTM_forward_params = pickle.load(open("weights/biDirectional_pre_LSTM_forward.pickle", "rb"))
-        LSTM_backward_params = pickle.load(open("weights/biDirectional_pre_LSTM_backward.pickle", "rb"))
-        attention_params = pickle.load(open("weights/attention.pickle", "rb"))
-        post_LSTM_params = pickle.load(open("weights/post_LSTM.pickle", "rb"))
-        params = pickle.load(open("weights/predict_layer.pickle", "rb"))
+        LSTM_forward_params = pickle.load(open(folder + "/biDirectional_pre_LSTM_forward.pickle", "rb"))
+        LSTM_backward_params = pickle.load(open(folder +"/biDirectional_pre_LSTM_backward.pickle", "rb"))
+        attention_params = pickle.load(open(folder + "/attention.pickle", "rb"))
+        post_LSTM_params = pickle.load(open(folder + "/post_LSTM.pickle", "rb"))
+        params = pickle.load(open(folder + "/predict_layer.pickle", "rb"))
 
         pre_bi_LSTM.forward._params = LSTM_forward_params
         pre_bi_LSTM.backward._params = LSTM_backward_params

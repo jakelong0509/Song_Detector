@@ -54,7 +54,7 @@ if __name__ == "__main__":
     X_train = X_train.reshape(X.shape)
     Y_train = Y_train.reshape(Y.shape)
     #------------------------------------
-
+    folder = "weights" # default folder
     songs_test_ = song_preprocessing.get_songs("../songs")
     # train and test
     model = model(X_train, Y_train, S, Tx, Ty, lr = 0.005, n_a = 128, n_s = 64, jump_step = jump_step, epoch = 1000, sec = sec, optimizer="Adam")
@@ -65,11 +65,20 @@ if __name__ == "__main__":
         for s in songs_test:
             print("song: ", s)
             X_predict, duration = song_preprocessing.graph_spectrogram("../songs_splited/"+s)
-            p_s = model.predict(np.transpose(X_predict), songs_test_)
+
+            if sys.argv[2] == "-f":
+                folder = sys.argv[3]
+
+            p_s = model.predict(np.transpose(X_predict), songs_test_, folder)
             if s[:-5] == p_s[:-4]:
                 count = count + 1
             print("{}/{}".format(count, len(songs_test)))
     elif sys.argv[1] == "-s":
         print("song: ", str(sys.argv[2]))
         X_predict, duration = song_preprocessing.graph_spectrogram("../songs_splited/"+str(sys.argv[2]))
-        model.predict(np.transpose(X_predict), songs_test_)
+
+        if sys.argv[3] == "-f":
+            folder = sys.argv[4]
+
+
+        model.predict(np.transpose(X_predict), songs_test_, folder)
