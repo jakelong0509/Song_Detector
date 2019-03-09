@@ -1,0 +1,4 @@
+1.  no dropout, n_a = 128, n_s = 64, attention dimension = [10] --> Converges after 100 epochs -- Test on 30 different parts of 3 songs / Accuracy: 90% (27/30)
+2.  dropout pre_bi_LSTM, n_a = 128, n_s = 64, attention dimension = [10] --> Converges after 90 epochs -- Test on 30 different parts of 3 songs / Accuracy: 83% (25/30)
+
+Is Dropout actualy hurting the model??????

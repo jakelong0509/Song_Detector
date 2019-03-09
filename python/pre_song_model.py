@@ -46,8 +46,8 @@ class pre_model:
         i: index
         """
         # self.gradient_checking()
-
         A = self.pre_LSTM.forward_propagation(self.X) # shape = (Tx, 2 * n_a)
+
         self.last_layer_hidden_state = A
         # TODO: dropout A
         #A = np.array(act.dropout(A, level=0.8)[0])
@@ -73,7 +73,7 @@ class pre_model:
             total_lost = total_lost + lost
 
         total_lost = (total_lost/self.Ty)
-
+        print("loss: ", total_lost)
         return total_lost, Y_hat, Y_true
 
     def backward_propagation_one_ex(self, Y_hat, Y_true, e, lr):
@@ -132,7 +132,7 @@ class pre_model:
         with open("weights_pre_song/predict_layer.pickle", "wb") as f:
             pickle.dump(self._params, f, protocol = pickle.HIGHEST_PROTOCOL)
 
-    def train(self, songs):
+    def train(self):
         lr = self.lr
         print("Starting to train Detector..........")
         for e in range(self.epoch):

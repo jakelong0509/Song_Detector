@@ -12,11 +12,12 @@ from Regularization import regularization
 from attention_model import attention_model
 from data_preprocessing import song_preprocessing
 from functions import activations as act, helper_func as func
-from sklearn.preprocessing import normalize
+from sklearn.preprocessing import normalize, minmax_scale
 from scipy.io import wavfile
+
 if __name__ == "__main__":
-    sec = 3
-    jump_step = 100
+    sec = 5
+    jump_step = 50
     main_dir = os.getcwd()
 
     # change directory to get songs
@@ -36,31 +37,39 @@ if __name__ == "__main__":
 
     # song_preprocessing.split_song(songs_dir + "/")
     # preprocessing data X.shape = (m, Tx, n_x) | Y.shape = (m, Ty, n_y)
-    songs, _ = song_preprocessing.get_songs("../song_train")
-    songs_test, _ = song_preprocessing.get_songs("../songs_splited")
+    #songs = song_preprocessing.get_songs("../songs")
+    songs = ["Everyday", "HitchCock", "Thanh Xuan", "Everyday", "HitchCock", "Thanh Xuan"] # for testing
+    songs_test = song_preprocessing.get_songs("../songs_splited")
     X, Y = song_preprocessing.preprocessing_data(songs_dir + "/", Tx, Ty)
-
-    #model = model(X, Y, S, Tx, Ty, lr = 0.005, n_a = 128, n_s = 128, jump_step = jump_step, epoch = 100, sec = sec, optimizer="Adam")
-    #model.train(songs)
-
-    # np.random.shuffle(songs_test)
-    # for s in songs_test:
-    #     print("song: ", s)
-    #     X_predict, duration = song_preprocessing.graph_spectrogram("../songs_splited/"+s)
-    #     model.predict(np.transpose(X_predict), songs)
-
-    # print("song: ", str(sys.argv[1]))
-    # X_predict, duration = song_preprocessing.graph_spectrogram("../songs/"+str(sys.argv[1]))
-    # model.predict(np.transpose(X_predict), songs)
+    loss = np.random.random(10)
 
 
+    # reorder training data-------
+    order = [0,2,4,1,3,5]
+    X_train = np.array([])
+    Y_train = np.array([])
+    for i in order:
+        X_train = np.append(X_train, X[i,:,:])
+        Y_train = np.append(Y_train, Y[i,:,:])
+    X_train = X_train.reshape(X.shape)
+    Y_train = Y_train.reshape(Y.shape)
+    #------------------------------------
 
-    # plt.plot(data_g)
-    # plt.show()
-    X_data = song_preprocessing.get_wav_info("../song_train/everday_recorded.wav")[1]
-    Y_data = song_preprocessing.get_wav_info("../song_train/everyday1.wav")[1]
-    X_data, Y_data = song_preprocessing.balance_dimension(X_data, Y_data)
-    Tx_data, n_x_data = X_data.shape
-    Ty_data, n_y_data = Y_data.shape
-    pre_model = pre_model(X_data, Y_data, Tx_data, Ty_data)
-    pre_model.forward_propagation_one_ex(1)
+    songs_test_ = song_preprocessing.get_songs("../songs")
+    # train and test
+    model = model(X_train, Y_train, S, Tx, Ty, lr = 0.005, n_a = 128, n_s = 64, jump_step = jump_step, epoch = 1000, sec = sec, optimizer="Adam")
+    if sys.argv[1] == "-train":
+        model.train(songs)
+    elif sys.argv[1] == "-test":
+        count = 0
+        for s in songs_test:
+            print("song: ", s)
+            X_predict, duration = song_preprocessing.graph_spectrogram("../songs_splited/"+s)
+            p_s = model.predict(np.transpose(X_predict), songs_test_)
+            if s[:-5] == p_s[:-4]:
+                count = count + 1
+            print("{}/{}".format(count, len(songs_test)))
+    elif sys.argv[1] == "-s":
+        print("song: ", str(sys.argv[2]))
+        X_predict, duration = song_preprocessing.graph_spectrogram("../songs_splited/"+str(sys.argv[2]))
+        model.predict(np.transpose(X_predict), songs_test_)

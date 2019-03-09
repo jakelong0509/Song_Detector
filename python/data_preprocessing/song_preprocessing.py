@@ -5,16 +5,14 @@ import os
 import sys
 from pydub import AudioSegment
 
-
+n_y = 3
 # return song list and number of song
 def get_songs(dir):
     songs = None;
-    song_no = 0;
     for(dirpath, dirnames, filenames) in os.walk(dir):
         songs = filenames
-        song_no = len(filenames)
     songs.sort()
-    return songs, song_no
+    return songs
 
 
 
@@ -22,7 +20,7 @@ def get_songs(dir):
 def get_Tx(dir):
     Tx = 0
     duration = 0
-    songs, _ = get_songs(dir)
+    songs = get_songs(dir)
     for s in songs:
         pxx_temp, duration_temp = graph_spectrogram(dir+s)
         Tx_temp = pxx_temp.shape[1]
@@ -48,12 +46,12 @@ def set_labels(y_oh, Ty, index): # y.shape = (Ty, n_y)
 
 # return index of song base on song name
 def get_y_index(dir, song_name):
-    songs, song_no = get_songs(dir)
+    songs = get_songs(dir)
     songs_indices = []
     y_index = 0;
     count = 0;
     for s in songs:
-        if(song_name.lower() == s.lower()):
+        if(song_name[:-5].lower() == s[:-4].lower()):
             y_index = count
             break
         count = count + 1
@@ -84,15 +82,15 @@ def graph_spectrogram(wav_file):
     return pxx, duration
 
 def preprocessing_data(dir, Tx, Ty):
-    songs, n_y = get_songs(dir)
-    print(songs)
+    songs = get_songs(dir)
+
     y_indexes = []
-    m = n_y
     x = []
     y = []
+
     for s in songs:
         x_temp, _ = graph_spectrogram(dir+s)
-        y_indexes.append(get_y_index(dir, s))
+        y_indexes.append(get_y_index("../songs", s))
         if(x_temp.shape[1] < Tx):
             missing = Tx - x_temp.shape[1]
             zeros = np.repeat(np.zeros((x_temp.shape[0],1)), missing, axis=1) # (101,missing)
@@ -103,11 +101,12 @@ def preprocessing_data(dir, Tx, Ty):
     x = np.swapaxes(x, 1,2) # x.shape = (m, Tx, n_x)
 
     for i in y_indexes:
-        print(i)
+
         y_oh = to_one_hot(n_y, i)
         y_ohs = set_labels(y_oh, Ty, i)
         y.append(y_ohs)
-    y = np.array(y)
+    y = np.array(y) # y.shape = (m, Ty, n_y)
+
     return x,y
 
 
@@ -116,7 +115,7 @@ def insert_string_in_middle(string, word):
     return string[:-4] + word + string[-4:]
 
 def split_song(dir, no_divided_songs = 10):
-    songs, _ = get_songs(dir)
+    songs = get_songs(dir)
     for s in songs:
         rate, data = get_wav_info(dir+s)
         no_jumps = int(np.round(data.shape[0] / no_divided_songs))

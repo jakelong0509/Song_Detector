@@ -86,7 +86,7 @@ class attention_model():
         """
 
         _current_A = self._A[start:end, :]
-        
+
         # call duplicate function fron functions module to duplicate _prev_s from (1,n_s) to (S, n_s)
         _prev_S = func.duplicate(self.S, self.n_s, prev_s, axis = 0)
 
@@ -275,7 +275,6 @@ class attention_model():
         i = i + 1
 
         lr = lr * np.sqrt(1 - beta2**i) / (1 - beta1**i)
-        print("Learning rate attention: ", lr)
         if self.optimizer == "Adam":
             s_corrected = {}
             v_corrected = {}

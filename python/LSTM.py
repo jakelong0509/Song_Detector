@@ -78,9 +78,9 @@ class LSTM():
         d_ax_drop = np.ones(concat.shape)
         d_c_drop = np.ones((1, self.n_a))
         if self.is_dropout:
-            a_drop, d_a_drop = act.dropout(a_prev, level = 0.8)
-            x_drop, d_x_drop = act.dropout(xt, level = 0.8)
-            c_prev, d_c_drop = act.dropout(c_prev, level = 0.8)
+            a_drop, d_a_drop = act.dropout(a_prev, level = 0.5)
+            x_drop, d_x_drop = act.dropout(xt, level = 0.5)
+            c_prev, d_c_drop = act.dropout(c_prev, level = 0.5)
             d_ax_drop = np.concatenate((d_a_drop, d_x_drop), axis = 1)
             concat = np.concatenate((a_drop, x_drop), axis = 1)
         ctt = np.tanh(np.matmul(concat, np.transpose(self._params["Wc"])) + self._params["bc"])
@@ -121,11 +121,11 @@ class LSTM():
         else:
             range = np.arange(Tx)
 
-        for t in progressbar.progressbar(range):
+        for t in range:
 
             xt = np.atleast_2d(X[t, :])
             at, ct, cache = self.cell_forward(a_prev, c_prev, xt)
-            print(at)
+
             a_prev = at
 
             c_prev = ct
@@ -263,8 +263,7 @@ class LSTM():
         first = True
         grads = None
         d_AS_list = []
-        print("Calculating Gradient......")
-        for t in progressbar.progressbar(reversed(range(self.T))):
+        for t in reversed(range(self.T)):
             gradients_t, dX, da_prev, dc_prev = self.cell_backward(np.atleast_2d(dA[t,:]), da_next_2, dc_next, self.caches[t], ds_c_next)
             da_next_2 = da_prev
             dc_next = dc_prev
@@ -331,7 +330,6 @@ class LSTM():
         # self.update_gradient()
         i = i + 1
         lr = lr * np.sqrt(1 - beta2**i) / (1 - beta1**i)
-        print("Learning Rate LSTM: ", lr)
         if self.optimizer == "Adam":
             s_corrected = {}
             v_corrected = {}

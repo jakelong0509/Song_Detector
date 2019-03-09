@@ -1,17 +1,17 @@
 import numpy as np
 import copy
-
+from functions import activations as act, helper_func as func
 
 class Bidirectional():
-    def __init__(self, name, layer):
+    def __init__(self, name, layer, is_dropout = False):
         self.name = name
         self.forward = copy.copy(layer)
         self.forward.name = "biDirectional_" + self.forward.name + "_forward"
         self.backward = copy.copy(layer)
         self.backward.is_backward = True
         self.backward.name = "biDirectional_"+ self.backward.name +"_backward"
-
-
+        self.concat_dropout = None
+        self.is_dropout = is_dropout
         self.dA_forward = None
         self.dA_backward = None
 
@@ -23,9 +23,7 @@ class Bidirectional():
             A_forward: forward hidden state of all time-step (Tx, n_a) -->
             A_backward: backward hidden state of all time-step (Tx, n_a) <--
         """
-        print("Calculating A forward.....")
         A_forward = self.forward.forward_propagation(X)
-        print("Calculating A backward.....")
         A_backward = self.backward.forward_propagation(X)
         return A_forward, A_backward
 
@@ -34,6 +32,9 @@ class Bidirectional():
     def concatLSTM(self, X):
         A_forward, A_backward = self.bi_forward(X)
         self.concat = np.concatenate((A_forward, A_backward), axis = 1) # shape = (Tx, 2*n_a)
+        self.concat_dropout = np.ones(self.concat.shape)
+        if self.is_dropout:
+            self.concat, self.concat_dropout = act.dropout(self.concat, level=0.5)
         return self.concat
 
     def accumulate_dA(self, att_dA_list, jump_step, Ty, Tx):
@@ -49,8 +50,8 @@ class Bidirectional():
             dA[start:end,:] = dA[start:end,:] + np.array(att_dA.reshape((S, n_a)))
             start = start + jump_step
             end = end + jump_step
-        self.dA_forward = dA[:, :int(n_a/2)]
-        self.dA_backward = dA[:, int(n_a/2):]
+        self.dA_forward = dA[:, :int(n_a/2)] * self.concat_dropout[:, :int(n_a/2)]
+        self.dA_backward = dA[:, int(n_a/2):] * self.concat_dropout[:, int(n_a/2):]
 
     def cell_backpropagation(self, att_dA_list, jump_step, Ty, Tx):
 
@@ -58,6 +59,8 @@ class Bidirectional():
         _ = self.forward.backward_propagation(self.dA_forward)
         _ = self.backward.backward_propagation(self.dA_backward)
         del _
+
+
     def update_weight(self, lr, i):
         self.forward.update_weight(lr, i)
         self.backward.update_weight(lr, i)
