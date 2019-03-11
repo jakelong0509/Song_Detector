@@ -38,14 +38,16 @@ if __name__ == "__main__":
     # song_preprocessing.split_song(songs_dir + "/")
     # preprocessing data X.shape = (m, Tx, n_x) | Y.shape = (m, Ty, n_y)
     #songs = song_preprocessing.get_songs("../songs")
-    songs = ["Everyday", "HitchCock", "Thanh Xuan", "Everyday", "HitchCock", "Thanh Xuan"] # for testing
+    songs = song_preprocessing.get_songs("../songs")
     songs_test = song_preprocessing.get_songs("../songs_splited")
     X, Y = song_preprocessing.preprocessing_data(songs_dir + "/", Tx, Ty)
     loss = np.random.random(10)
 
 
     # reorder training data-------
-    order = [0,2,4,1,3,5]
+    order = np.arange(X.shape[0])
+    np.random.shuffle(order)
+    print(order)
     X_train = np.array([])
     Y_train = np.array([])
     for i in order:
@@ -55,7 +57,7 @@ if __name__ == "__main__":
     Y_train = Y_train.reshape(Y.shape)
     #------------------------------------
     folder = "weights" # default folder
-    songs_test_ = song_preprocessing.get_songs("../songs")
+    song_folder = "songs_splited"
     # train and test
     model = model(X_train, Y_train, S, Tx, Ty, lr = 0.005, n_a = 128, n_s = 64, jump_step = jump_step, epoch = 1000, sec = sec, optimizer="Adam")
     if sys.argv[1] == "-train":
@@ -64,21 +66,28 @@ if __name__ == "__main__":
         count = 0
         for s in songs_test:
             print("song: ", s)
-            X_predict, duration = song_preprocessing.graph_spectrogram("../songs_splited/"+s)
 
-            if sys.argv[2] == "-f":
-                folder = sys.argv[3]
+            if sys.argv[2] == "-sf":
+                song_folder = sys.argv[3]
 
-            p_s = model.predict(np.transpose(X_predict), songs_test_, folder)
+            X_predict, duration = song_preprocessing.graph_spectrogram("../" + song_folder + "/" + s)
+
+            if sys.argv[4] == "-f":
+                folder = sys.argv[5]
+
+            p_s = model.predict(np.transpose(X_predict), songs, folder)
             if s[:-5] == p_s[:-4]:
                 count = count + 1
             print("{}/{}".format(count, len(songs_test)))
     elif sys.argv[1] == "-s":
-        print("song: ", str(sys.argv[2]))
-        X_predict, duration = song_preprocessing.graph_spectrogram("../songs_splited/"+str(sys.argv[2]))
 
-        if sys.argv[3] == "-f":
-            folder = sys.argv[4]
+        if sys.argv[3] == "-sf":
+            song_folder = sys.argv[4]
+
+        X_predict, duration = song_preprocessing.graph_spectrogram("../" + song_folder + "/" + str(sys.argv[2]))
+
+        if sys.argv[5] == "-f":
+            folder = sys.argv[6]
 
 
-        model.predict(np.transpose(X_predict), songs_test_, folder)
+        model.predict(np.transpose(X_predict), songs, folder)

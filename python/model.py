@@ -194,7 +194,6 @@ class model:
             print("Epoch {}/{}".format(e, self.epoch))
             lost = 0
             for i in progressbar.progressbar(range(self.m)):
-                print(" Song: ", songs[i])
                 total_lost, Y_hat, Y_true = self.forward_propagation_one_ex(i, e)
                 lost = lost + total_lost
                 self.backward_propagation_one_ex(Y_hat, Y_true, i, e, lr)
@@ -266,7 +265,7 @@ class model:
         y_predict = y_predict / Ty
         print(y_predict)
         index = np.argmax(y_predict)
-        print("Song predicted: ", songs[index])
+        print("Song predict: ", songs[index])
         return songs[index]
 
     def gradient_checking(self, dby, dWy, i, eps = 1e-4):
